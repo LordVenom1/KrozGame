@@ -1,0 +1,46 @@
+Made from scratch engine and code design.  Written from scratch in 1 day.
+Borrowed free art assets
+Unlicensed game design and levels from Kroz, an old shareware game from the late 80s/early 90s
+	Games are open-source PASCAL but not a free license
+
+Written in Ruby
+Use high-level graphics library Gosu (which uses OpenGL)
+
+* input system
+* rudimentary component system
+* simple inheritance 1-2 levels
+* save and load
+* floor tiles are stored in a simple 2d array
+* sprite caching
+* level loader
+	* some layers of organization around mapping maps in original kroz format to tiles/components/sprites - yaml
+* game runs real-time from Gosu loops (update, draw)
+* drawing is done immediate
+* some reading of original source to make systems work per the original
+
+Goals:
+* make a complete game that's playable
+* make a game with decent graphics by dropping in free assets
+* demonstrate basic ability to structure a non-trivial program, complete
+* publish on itch.io
+
+Todo:
+	switch actions to command paradigm
+	simplify component_at... should be a single slot
+	compare enemy behavior to original
+	build up level designer
+	components are a mess? event system?
+	
+	clean up player action.  needing to recheck right before acting sucks	
+
+    "press any key to begin the level"
+	"stairs take you to the next lower level"
+	
+	more cool animations, weak walls crumbling, torches, etc
+	avoid holding a button?  'w' can use multiple whips...
+	
+ui should be more agnostic about the game.  just call one update.  game should be aware of pausing..
+
+` is trap
+invisibility
+slow_monster
