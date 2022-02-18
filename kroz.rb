@@ -26,13 +26,7 @@ class GameWindow < Gosu::Window
 		@tile_scale = 1.0
 		@tile_scale = [(width * 0.90) / (@game.board_x * @tile_width.to_f), (height * 0.90) / (@game.board_y * @tile_height.to_f)].min		
 	
-		@paused = true		
-		
 		@last_update = Time.now()
-		@last_player_update = Time.now()
-		@last_game_update = Time.now()
-		@player_tick_rate = 0.1
-		@game_tick_rate = 2.0
 		
 		@font = Gosu::Font.new(24)
 		
@@ -41,56 +35,10 @@ class GameWindow < Gosu::Window
 	end	
 	
 	
-	def update
-		return if @paused		
-						
+	def update		
 		current = Time.now()		
 		@game.update(current - @last_update)
-		@last_update = current
-		
-		if current > @last_player_update + @player_tick_rate
-		
-			# lock in player action...
-			# could just pass this directly into player_tick?
-			
-			if Gosu.button_down? Gosu::KB_NUMPAD_8 or Gosu.button_down? Gosu::KB_UP or @action == :move_up	
-				@game.player_tick(:move_up)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_7 or @action == :move_upleft
-				@game.player_tick(:move_upleft)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_9 or @action == :move_upright
-				@game.player_tick(:move_upright)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_4 or Gosu.button_down? Gosu::KB_LEFT or @action == :move_left
-				@game.player_tick(:move_left)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_6 or Gosu.button_down? Gosu::KB_RIGHT or @action == :move_right
-				@game.player_tick(:move_right)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_1 or @action == :move_downleft
-				@game.player_tick(:move_downleft)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_2 or Gosu.button_down? Gosu::KB_DOWN or @action == :move_down
-				@game.player_tick(:move_down)
-			elsif Gosu.button_down? Gosu::KB_NUMPAD_3 or @action == :move_downright
-				@game.player_tick(:move_downright)
-			elsif Gosu.button_down? Gosu::KB_W or @action == :whip
-				@game.player_tick(:whip)
-			end
-			
-			@action = nil
-		
-			@last_player_update += @player_tick_rate # in case we get behind
-			
-		end
-		
-		if current > @last_game_update + @game_tick_rate
-			@last_game_update += @game_tick_rate # in case we get behind
-			@game.game_tick()
-		end
-	
-
-		
-		# every x ticks, allow player to move
-		# every y ticks, tick() all components
-		# not sure if any components need true updates.. maybe scrolls?  probalby not
-		
-		
+		@last_update = current	
 	end
 	
 	def draw	
@@ -114,48 +62,74 @@ class GameWindow < Gosu::Window
 		end
 		
 		# draw ui		
-		@font.draw_text("Score: #{@game.player.score.to_s.rjust(7," ")}  Level: #{@game.mission.to_s.rjust(2, " ")}  Gems: #{@game.player.gems.to_s.rjust(3, " ")}  Whips: #{@game.player.whips.to_s.rjust(3, " ")}  Teleports: #{@game.player.teleports.to_s.rjust(3, " ")}  Keys: #{@game.player.keys.to_s.rjust(2, " ")}", 30.0, height - 30, 1.0)
+		@font.draw_text("Score: #{@game.player.score.to_s.rjust(9," ")}  Level: #{@game.mission.to_s.rjust(2, " ")}  Gems: #{@game.player.gems.to_s.rjust(3, " ")}  Whips: #{(@game.player.whips.to_s.rjust(3, " ") + (@game.player.rings == 0 ? "  " : ("+" + @game.player.rings.to_s)))}  Teleports: #{@game.player.teleports.to_s.rjust(3, " ")}  Keys: #{@game.player.keys.to_s.rjust(2, " ")}", 30.0, height - 30, 1.0)
 		
-		@font.draw_text("PAUSED", 420, 530, 1.0) if @paused
+		@font.draw_text("PAUSED", 420, 530, 1.0) if @game.paused
+		
+		@font.draw_text(@game.render_state.current_flash, 420, 550, 1.0)
 		#draw_text(text, x, y, z, scale_x = 1, scale_y = 1, color = 0xff_ffffff, mode = :default) ⇒ void
 	end
 	
+	def set_action()
+		if Gosu.button_down? Gosu::KB_NUMPAD_8 or Gosu.button_down? Gosu::KB_UP				
+			@game.handle_action(:move_up)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_7
+			@game.handle_action(:move_upleft)			
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_9
+			@game.handle_action(:move_upright)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_4 or Gosu.button_down? Gosu::KB_LEFT
+			@game.handle_action(:move_left)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_6 or Gosu.button_down? Gosu::KB_RIGHT
+			@game.handle_action(:move_right)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_1
+			@game.handle_action(:move_downleft)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_2 or Gosu.button_down? Gosu::KB_DOWN
+			@game.handle_action(:move_down)
+		elsif Gosu.button_down? Gosu::KB_NUMPAD_3
+			@game.handle_action(:move_downright)
+		elsif Gosu.button_down? Gosu::KB_W
+			@game.handle_action(:whip)
+		elsif Gosu.button_down? Gosu::KB_T
+			@game.handle_action(:teleport)
+		elsif Gosu.button_down? Gosu::KB_RIGHT_BRACKET
+			@game.handle_action(:next_level)
+		elsif Gosu.button_down? Gosu::KB_LEFT_BRACKET
+			@game.handle_action(:prev_level)
+		elsif Gosu.button_down? Gosu::MS_LEFT
+			mx, my = mouse_x, mouse_y
+			mx = (mx / @tile_width / @tile_scale).to_i
+			my = (my / @tile_height / @tile_scale).to_i							
+			@game.handle_action(:set_location, mx, my)
+		elsif Gosu.button_down? Gosu::KB_SPACE
+			@game.handle_action(:pause)
+			@last_update = Time.now()
+		end
+	end	
+	
+	# debug
+	def needs_cursor?
+		true
+	end
+	
 	def button_down(id)
-	
-		return if @game.animation
-	
 		if id == Gosu::KB_ESCAPE
-			close			
-		elsif id == Gosu::KB_NUMPAD_8 or Gosu.button_down? Gosu::KB_UP				
-			@action = :move_up
-		elsif id == Gosu::KB_NUMPAD_7
-			@action = :move_upleft
-		elsif id == Gosu::KB_NUMPAD_9
-			@action = :move_upright
-		elsif id == Gosu::KB_NUMPAD_4 or Gosu.button_down? Gosu::KB_LEFT
-			@action = :move_left
-		elsif id == Gosu::KB_NUMPAD_6 or Gosu.button_down? Gosu::KB_RIGHT
-			@action = :move_right
-		elsif id == Gosu::KB_NUMPAD_1
-			@action = :move_downleft
-		elsif id == Gosu::KB_NUMPAD_2 or Gosu.button_down? Gosu::KB_DOWN
-			@action = :move_down
-		elsif id == Gosu::KB_NUMPAD_3
-			@action = :move_downright
-		elsif id == Gosu::KB_W
-			@action = :whip						
-		elsif id == Gosu::KB_SPACE
+			@game.shutdown
+			close				
+		
+			
 			@paused = !@paused
 			if not @paused
 				# if unpaused, reset timers to allow time to act
+				@action = nil
 				current = Time.now
 				@last_player_update = current
 				@last_game_update = current
 				@last_update = current
 			end
 		else
+			set_action() 
 			super
-		end
+		end		
 	end
 	
 	def button_up(id)

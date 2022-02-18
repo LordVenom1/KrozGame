@@ -1,614 +1,171 @@
 require 'yaml'
+require './components.rb'
+require './renderer.rb'
 
-class Component
-	attr_accessor :x, :y, :active
-	attr_reader :name # for debugging
-	def initialize(game, x = nil,y = nil, name = "")		
-		@game = game
-		@x,@y = x,y
-		@name = name
-		@color = Gosu::Color::WHITE
-		@active = true
+class Effect
+	def initialize(default_activation_duration)
+		@default_activation_duration = default_activation_duration
+		@duration = 0.0
 	end
 	
-	def update(dx)		
+	def active?
+		@duration > 0.0
 	end
 	
-	def tick()
+	def activate(dur = nil)		
+		@duration += dur ? dur : @default_activation_duration # extend effect if already active
 	end
 	
-	def sprite_name()
-		@name
-	end
-	
-	def color()
-		@color
-	end
-	
-	def on_player_walk()
-	end
-	
-	def on_player_walk_fail()
-	end
-	
-	def can_player_walk?()
-		true
-	end
-	
-	def on_mob_walk()
-		true
-	end 
-	
-	def can_mob_walk?()
-		true
-	end 
-	
-	def on_arrow_hit()
-		false
-	end
-	
-	def on_whip(str) # str is 1-7		
-	end
-	
-	def physical() # takes up that slot
-		true
-	end
-end
-
-class CompPlayer < Component
-
-	attr_reader :score, :gems, :whips, :teleports, :keys, :rings
-	attr_reader :state
-
-	def initialize(game,x,y)
-		super(game,x,y,"player")
-		@color = Gosu::Color::YELLOW
-		
-		@score = 0	
-		@gems = 20
-		@whips = 10
-		@whips = 999 # debugging
-		@teleports = 0
-		@keys = 0
-		@rings = 0
-		@state = :alive		
+	def clear
+		@duration = 0.0
 	end
 	
 	def update(dx)
-	end
-	
-	def sprite_name
-		@name
-	end
-	
-	def add_score(s)
-		@score += s
-		s = 0 if s < 0
-	end
-	
-	def add_gems(cnt)
-		@gems += cnt
-		@score = cnt * 10 if cnt > 0
-		raise 'game over' if @gems < 0
-	end
-	
-	def add_whips(cnt)
-		@whips += cnt
-		# @score += cnt * 5
-	end
-	
-	def add_rings(cnt)
-		@rings += 1
-	end
-	
-	def add_keys(cnt)
-		@keys += 1
-	end
-	
-	def add_teleports(cnt)
-		@teleports += cnt
-	end
-	
-	def on_mob_walk()
-		add_gems(-1)
-	end 
-		
-end
-
-class CompBorder < Component
-	def initialize(game,x,y)
-		super(game,x,y,"border")
-		@color = Gosu::Color::YELLOW
-	end
-	
-	def update(dx)
-	end
-	
-	def sprite_name
-		@name
-	end
-	
-	def can_player_walk?()
-		false
-	end
-	
-	def on_player_walk_fail()
-		# subtract score, 
-		# play noise
-		@game.player.add_score(-20)
-	end
-	
-	def can_mob_walk?()
-		false
-	end 
-	
-end
-
-class CompMob < Component
-	def initialize(game,x,y,name)
-		super(game,x,y,name)
-		@state = :awake
-	end
-	
-	def tick()
-		#monster AI
-		
-		px, py = @game.player.x, @game.player.y
-		tx, ty = @x, @y
-		
-		if px > @x and py > @y
-			tx, ty = @x + 1, @y + 1  # up-right
-		elsif px > @x and py < @y
-			tx, ty = @x + 1, @y - 1  # down-right
-		elsif px < @x and py > @y
-			tx, ty = @x - 1, @y + 1  # up-left
-		elsif px < @x and py < @y
-			tx, ty = @x - 1, @y - 1  # down-left
-		elsif px > @x
-			tx = @x + 1
-		elsif px < @x
-			tx = @x - 1
-		elsif py > @y
-			ty = @y + 1
-		elsif py < @y
-			ty = @y - 1
-		end 
-		
-		if @x != tx or @y != ty
-			cs = @game.components_at(tx, ty)
-			# if cs.size > 1
-				# puts cs
-				# puts "#{x},#{y}"
-			# end
-			# raise 'multiple comps' if cs.size > 1
-			if not cs or cs.can_mob_walk?
-				@x, @y = tx, ty
-				if cs
-					cs.on_mob_walk() 
-					@active = false
-				end
-			end
+		if active?
+			@duration -= dx
+			@duration = 0.0 if @duration < 0.0
 		end
-	end
-	
-	def on_whip(str)
-		@active = false
-	end
-	
-	def on_player_walk()
-		@active = false
-		@game.player.add_gems(-1)
-	end
-	
-	def can_mob_walk?()
-		false
-	end 
-	
-	def on_arrow_hit()
-		@active = false
-		false
-	end
-	
-end
-
-class CompMob1 < CompMob
-	def initialize(game,x,y)
-		super(game,x,y,"mob1")
-		@color = Gosu::Color::WHITE
-	end
-	
-	def on_whip(str)
-		super
-		@game.player.add_score(1)
-	end
-end
-
-class CompMob2 < CompMob
-	def initialize(game,x,y)
-		super(game,x,y,"mob2")
-		@color = Gosu::Color::GREEN
-	end
-	
-	def on_whip(str)
-		super
-		@game.player.add_score(1)
-	end
-end
-
-class CompMob3 < CompMob
-	def initialize(game,x,y)
-		super(game,x,y,"mob3")
-		@color = Gosu::Color::YELLOW
-	end
-	
-	def on_whip(str)
-		super
-		@game.player.add_score(3)
-	end
-end
-
-class CompWhip < Component
-	def initialize(game,x,y)
-		super(game,x,y,"whip")
-		@color = Gosu::Color::YELLOW
-	end 
-	
-	def on_player_walk()
-		@active = false
-		@game.player.add_whips(1)
-	end
-	
-	def on_mob_walk()
-		@active = false
-	end 
-	
-	def on_whip(str)
-		@active = false		
-	end		
-end	
-
-class CompWhipAnimation < Component
-	WHIP_TIME = 0.03
-	def initialize(game,x,y)
-		super(game,x,y,"whip")
-		@color = Gosu::Color::RED			
-		@duration = WHIP_TIME
-	end
-	
-	def update(dx)		
-		@duration -= dx
-		@active = false if @duration <= 0.0
-	end
-	
-	def physical
-		false
-	end
-end
-
-class CompChest < Component
-	def initialize(game,x,y)
-		super(game,x,y,"chest")
-		@color = Gosu::Color.argb(0xff_A52A2A)
-	end
-	
-	def on_player_walk()		
-		@active = false
-		@game.player.add_gems(3 + rand(3) * 2)
-		@game.player.add_whips(1 + rand(3))
-		@game.player.add_score(5)
-	end
-	
-	def on_mob_walk()
-		@active = false
-	end 
-	
-	def on_arrow_hit()
-		@active = false
-		false
-	end
-
-end	
-
-class CompGem < Component
-	def initialize(game,x,y)
-		super(game,x,y,"gem")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk()		
-		@active = false
-		@game.player.add_gems(1)
-		@game.player.add_score(1)
-	end
-
-	def on_mob_walk()
-		@active = false
-	end 
-	
-	def on_arrow_hit()
-		@active = false
-		false
-	end
-end	
-
-class CompKey < Component
-	def initialize(game,x,y)
-		super(game,x,y,"key")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk()		
-		@active = false
-		@game.player.add_keys(1)
-		@game.player.add_score(1)
-	end
-
-	def on_mob_walk()
-		@active = false
-	end 
-	
-	def on_arrow_hit()
-		@active = false
-		false
-	end
-end	
-
-class CompTrap < Component
-	def initialize(game,x,y)
-		super(game,x,y,"trap1")
-		@color = Gosu::Color::RED
-	end 
-	
-	def on_whip(str)
-		@active = false
-	end
-end	
-
-class CompTrapBlock < Component
-	def initialize(game, x, y)
-		super(game,x,y,"trap1") # invis
-		@color = Gosu::Color::WHITE
-	end
-	
-	def on_player_walk
-		# do it
-	end
-end
-
-
-class CompWall < Component
-	def initialize(game,x,y)
-		super(game,x,y,"wall1")
-		@color = Gosu::Color::GRAY
-	end 
-	
-	def can_player_walk?()
-		false
-	end
-	
-		
-	def can_mob_walk?()
-		false
-	end 
-
-	def on_arrow_hit()
-		true # stop the arrow
-	end
-end	
-
-class CompTablet < Component
-# procedure Tablet_Message(Level: integer);
- # begin
-  # case Level of
-   # 1: Flash(5,25,'Once again you uncover the hidden tunnel leading to Kroz!');
-   # 2: Flash(7,25,'Warning to all Adventurers:  No one returns from Kroz!');
-   # 4: Flash(8,25,'Adventurer, try the top right corner if you desire.');
-   # 6: Flash(6,25,'A strange magical gravity force is tugging you downward!');
-   # 8,24: Flash(12,25,'You have choosen the greedy path Adventurer!');
-   # 9: Flash(3,25,'A magical forest grows out of control in this region of Kroz!');
-   # 10:Flash(9,25,'Sometimes, Adventurer, Gems can be crystal clear.');
-   # 12:Flash(11,25,'The lava will block a slow Adventurer''s path!');
-   # 14:Flash(9,25,'Follow the sequence if you wish to be successful.');
-   # 18:begin
-       # Prayer;
-       # Flash(4,25,'"Barriers of water, like barriers in life, can always be..."');
-       # bak(0,0);
-       # for x := XBot to XTop do
-        # for y := YBot to YTop do
-         # if PF[x,y] = 17 then
-          # begin
-           # sound(x*y);
-           # PF[x,y] := 43;
-           # gotoxy(x,y);
-           # col(6,7);
-           # write(Block);
-           # delay(4);
-          # end; nosound; 
-       # Flash(26,25,'"...Overcome!"');
-      # end;
-   # 20:Flash(16,25,'These walls will seek to entrap you!');
-   # 22:begin
-       # Prayer;
-       # Flash(6,25,'"If goodness is in my heart, that which flows shall..."');
-       # bak(0,0);
-       # for x := XBot to XTop do
-        # for y := YBot to YTop do
-         # if PF[x,y] = 17 then
-          # begin
-           # sound(x*y);
-           # PF[x,y] := 27;
-           # gotoxy(x,y);
-           # col(14,7);
-           # write(Nugget);
-           # delay(1);
-          # end; nosound;
-       # Flash(25,25,'"...Turn to Gold!"');
-      # end;
-  # end;
- # end; { Tablet_Message }
-end
-
-class CompWeakWall < Component
-	def initialize(game,x,y)
-		super(game,x,y,"wall1")
-		@color = Gosu::Color.argb(0xff_A52A2A)
-	end 
-	
-	def can_player_walk?()
-		false
-	end
-
-	def on_mob_walk()
-		@active = false
-	end
-
-	def on_whip(str)
-		raise 'invalid str' unless (1..7).include? str		
-		@active = false if (rand(7)) < str
-	end
-end	
-
-class CompUnknown < Component
-	def initialize(game,x,y)
-		super(game,x,y,"unknown")
-		@color = Gosu::Color::YELLOW
-	end 
-end	
-
-class CompExit < Component
-	def initialize(game,x,y)
-		super(game,x,y,"exit")
-		@color = Gosu::Color::GREEN
-	end 
-	
-	def on_player_walk()
-		# change level...
-		# reset flags...
-		@game.add_score(6)
-		
-	end
-end	
-
-class CompDoor < Component
-	def initialize(game,x,y)
-		super(game,x,y,"door")
-		@color = Gosu::Color.argb(0xff_A52A2A)
-	end 
-	
-	def can_player_walk?()
-		
-		false # player has keys...
-	end
-end	
-
-class CompTeleport < Component
-	def initialize(game,x,y)
-		super(game,x,y,"teleport")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk
-		@game.player.add_teleports(1)
-	end
-end	
-
-class CompShootRight < Component
-	def initialize(game,x,y)
-		super(game,x,y,"shootright")
-		@color = Gosu::Color::RED
-	end 
-	
-	def on_player_walk()
-		@active = false
-		@game.components << CompShootRightAnimation.new(@game, x + 1, y)
-	end
-end	
-
-class CompShootRightAnimation < Component
-	ARROW_TIME = 0.03
-	def initialize(game,x,y)
-		super(game,x,y,"shootright")
-		@color = Gosu::Color::RED	
-		@duration = ARROW_TIME
-	end 
-	
-	def update(dx)
-		@duration -= dx
-		if @duration < 0.0
-			if (c = @game.components_at(x+1,y)) then
-				if c.on_arrow_hit() then
-					@active = false
-					return
-				end
-			else
-				@x = @x + 1
-			end
-			@duration += ARROW_TIME
-		end
-	end
-	
-	def physical
-		false
-	end
-end	
-
-class CompRing < Component
-	def initialize(game,x,y)
-		super(game,x,y,"ring")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk
-		@game.player.add_ring(1)
-		@game.player.add_score(15)
-	end
-end	
-
-class CompLetter < Component
-	def initialize(game,x,y, letter)
-		super(game,x,y,letter)
-		@color = Gosu::Color::WHITE # font is red
-	end
-	
-	def can_player_walk?()
-		false
 	end
 end
 
 class KrozGame
-	attr_reader :board_x, :board_y
+	attr_reader :board_x, :board_y, :player
 	attr_reader :episode, :mission
+	attr_reader :effects
+	attr_reader :paused
+	attr_reader :render_state
 
+	DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]]
+	PLAYER_TICK = 0.1
+	GAME_TICK = 0.2
 	def initialize()
 		@board_x = 64 + 2
 		@board_y = 23 + 2
+		@board = Array.new(@board_x * @board_y)
 		@components = []
 		
 		load_sprites()
 		
-		@episode = 1 # kingdom of kroz (remake?)
-		@mission = 2 # level 1
+		@episode = :kingdom # kingdom of kroz (remake?)
+		@mission = 1 # level 1
 		
 		@player = nil
 		@player_action = :none
 		
-		load_level(@episode, @mission)
+		# game effects 
+		@effects = {
+			slow_monster: Effect.new(10.0),
+			freeze_monster: Effect.new(10.0),
+			speed_monster: Effect.new(10.0),
+			invisible_player: Effect.new(8.0),
+			flash: Effect.new(2.0)
+		}
 		
-		@current = Time.now()
-		@animation = false
+		load_level()
+
+		@paused = true				
+		
+		@next_player_update = PLAYER_TICK
+		@next_game_update = GAME_TICK
+		
+		@render_state = RenderState.new()
+		
+		flash("welcome")
 	end
 	
-	def player 
-		@player
+	def flash(msg)
+		@render_state.add_flash(msg)		
+		@effects[:flash].activate unless @effects[:flash].active?		
+	end
+	
+	def slow_monster
+		
+		@effects[:slow_monster].activate
+		@next_game_update = GAME_TICK * 6
+	end
+	
+	def toggle_pause
+		@paused = @paused ? false : true
+		@last_update = Time.now() if not @paused			
+	end
+		
+	def blocking_animation_running?
+		@components.select do |c| c.active and c.blocking_animation? end.size > 0
+	end
+	
+	def next_level		
+		@mission += 1
+		@mission = 14 if @mission > 14
+		
+		load_level()
+	end
+	
+	def teleport_player
+		while true
+			tx = 1 + rand(64)
+			ty = 1 + rand(23)
+			cs = components_at(tx,ty)		
+			if not cs			
+				@player.x, @player.y = tx, ty 
+				break
+			end			
+		end
 	end
 	
 	def components_at(x,y)
-		result = components.select do |c|
-			c.x == x and c.y == y and c.active and c.physical
+		result = @components.select do |c|
+			c.x == x and c.y == y and c.active
 		end
-		raise "more than one component at location #{x},#{y}" if result.size > 1
+		raise "more than one component at location #{x},#{y}: #{result.collect do |c| c.to_s end.join(" | ")}" if result.size > 1
 		return result.first
 	end
+	
+	def handle_action(action, *args)
+		if action == :pause
+			toggle_pause
+		elsif action == :set_location
+			@player.set_location(*args) unless components_at(*args) and not components_at(*args).can_player_walk?
+		else			
+			@next_player_action = action
+		end
+	end
+	
+	def shutdown
+	end
+	
+		# main game engine.. update all entities		
+	def update(dx)
+		return if @paused
+		
+		@effects.each do |name,effect|
+			effect.update(dx)
+		end
+		
+		if not @effects[:flash].active?			
+			@render_state.clear_flash if @render_state.current_flash
+			@effects[:flash].activate if @render_state.current_flash			
+		end
+			
+		@components.each do |c| c.update(dx) end
+		
+		if not blocking_animation_running?		
+			@next_game_update -= dx
+			if @next_game_update < 0.0
+				game_tick()
+				@next_game_update = GAME_TICK
+				@next_game_update *= 6 if @effects[:slow_monster].active?
+				@next_game_update /= 2 if @effects[:speed_monster].active?
+			end
+		
+			@next_player_update -= dx
+			if @next_player_update < 0.0
+				player_tick(@next_player_action) if @next_player_action
+				@next_player_update = PLAYER_TICK # try not adding, so if we are behind just leave it
+				@next_player_action = nil		
+			end		
+		end		
+		
+	end	
 	
 	def player_tick(action)	
 			
@@ -636,24 +193,35 @@ class KrozGame
 			# check for OnEnter on destination
 		end
 		
-		if action == :whip and 
+		if action == :whip 
 			if @player.whips > 0
 				@player.add_whips(-1)				
-				[[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]].each do |dir|
+				DIRS.each do |dir|
 					cs = components_at(@player.x + dir.first, @player.y + dir.last)
-					cs.on_whip(1 + @player.rings) if cs
-					cs = components_at(@player.x + dir.first, @player.y + dir.last)
-					components << CompWhipAnimation.new(self, @player.x + dir.first, @player.y + dir.last) if not cs					
-				end
-				
+					cs.on_whip() if cs
+				end	
+				@components << CompWhipAnimation.new(self, x, y)
 			end
+		elsif action == :teleport
+			if @player.teleports > 0
+				@player.add_teleports(-1)
+				teleport_player
+			end
+		elsif action == :next_level
+			next_level
+		elsif action == :prev_level		
+			@mission -= 1
+			@mission = 1 if @mission <= 0
+			
+			load_level()
+			
 		end
 		
 		cleanup_components() # remove inactive components 
 	end
 	
 	def cleanup_components()
-		components.select! do |c| c.active end
+		@components.select! do |c| c.active end
 	end
 	
 	def game_tick()
@@ -664,23 +232,34 @@ class KrozGame
 	end
 	
 	def visible_components
-		@components.select do |c| c.active end
+		@components.select do |c| c.active and c.visible? end
 	end
 	
-	def components
-		@components
-	end
+	# def components
+		# @components
+	# end
+	
+	
 	
 	def load_sprites
 		SpriteManager.load_sprite_from_sheet("floor1", "terrain_sprites.png", 0, 0, 16, 24)
 		SpriteManager.load_sprite_from_sheet("wall1", "terrain_sprites.png", 3, 0, 16, 24)
 		SpriteManager.load_sprite_from_sheet("border", "terrain_sprites.png", 3, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("trap1", "feature_sprites.png", 5, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("shootright", "feature_sprites.png", 11, 0, 16, 24)
+		SpriteManager.load_sprite_from_sheet("water", "terrain_sprites.png", 2, 0, 16, 24)
+		SpriteManager.load_sprite_from_sheet("tree", "terrain_sprites.png", 1, 0, 16, 24)
+		SpriteManager.load_sprite_from_sheet("forest", "terrain_sprites.png", 14, 0, 16, 24)
+		SpriteManager.load_sprite_from_sheet("tunnel", "terrain_sprites.png", 8, 0, 16, 24)
 		
+		SpriteManager.load_sprite_from_sheet("trap1", "item_sprites.png", 3, 2, 16, 24)
+		SpriteManager.load_sprite_from_sheet("shootright", "feature_sprites.png", 11, 0, 16, 24)
+		SpriteManager.load_sprite_from_sheet("shootleft", "feature_sprites.png", 11, 0, 16, 24)
+		
+		SpriteManager.load_sprite_from_sheet("freeze", "item_sprites.png", 4, 1 , 16, 24)
+		SpriteManager.load_sprite_from_sheet("fast", "item_sprites.png", 7, 0 , 16, 24)
+		SpriteManager.load_sprite_from_sheet("slow", "item_sprites.png", 6, 0 , 16, 24)
+		# 6,7
 		
 		SpriteManager.load_sprite_from_sheet("gem", "item_sprites.png", 3, 1 , 16, 24)
-		#SpriteManager.load_sprite_from_sheet("gem", "creature_sprites.png", 21, 4 , 16, 24)
 		SpriteManager.load_sprite_from_sheet("whip", "item_sprites.png", 15, 1 , 16, 24)
 		SpriteManager.load_sprite_from_sheet("ring", "item_sprites.png", 31, 0 , 16, 24)
 		SpriteManager.load_sprite_from_sheet("key", "item_sprites.png", 3, 0, 16, 24)
@@ -688,6 +267,9 @@ class KrozGame
 		SpriteManager.load_sprite_from_sheet("door", "sys_sprites.png", 6, 0, 16, 24)
 		SpriteManager.load_sprite_from_sheet("exit", "feature_sprites.png", 4, 0, 16, 24)
 		SpriteManager.load_sprite_from_sheet("teleport", "feature_sprites.png", 6, 0, 16, 24)
+		
+		
+		SpriteManager.load_sprite_from_sheet("invis", "feature_sprites.png", 7, 0, 16, 24)
 		
 		
 		SpriteManager.load_sprite_from_sheet("sign", "feature_sprites.png", 12, 0, 16, 24)		
@@ -706,14 +288,65 @@ class KrozGame
 		end
 	end
 	
-	def load_level(episode, mission)
+	# def place_random(comp)
+		# while true
+			# px, py = 2 + rand(@board_x - 2), 2 + rand(@board_y - 2)
+			# if not components_at(px,py)
+				# c = comp.new(self,px,py)
+				# add_component(c)
+				# return c
+			# end
+		# end
+	# end
 	
-		data = File.read("levels/#{episode}_#{mission}.dat")
+	def place_random(data, char)
+		while true
+			px, py = rand(@board_x), rand(@board_y)
+			if data[px + py * @board_x] == " "
+				data[px + py * @board_x] = char		
+				return				
+			end
+		end
+	end	
+	
+	def generate_random_level
+		data = " " * 1495
+		
+		60.times do 
+			place_random(data, "1")
+			place_random(data, "X")
+			place_random(data, "#")			
+		end
+		
+		place_random(data, "L")
+		place_random(data, "P")
+				
+		data
+	end
+	
+	def add_component(c)
+		
+		@components << c
+	end
+	
+	def load_level()
+	
+		# clear existing game
+		@effects.each do |name,e| e.clear end
+		@components = []
+	
+		if @episode == :kingdom and [3,5,7,9,11].include? @mission
+			data = generate_random_level()
+		else
+			data = File.read("levels/#{@episode.to_s}_#{@mission}.dat")
+		end
+		
 		# puts data.size
-		raise "invalid map #{episode}, #{mission}" unless data.size == 1495 # plus newlines?
+		raise "invalid map #{episode.to_s}_#{MISSIONS[episode][mission]}.dat" unless data.size == 1495 # plus newlines?
 		#puts data[0]		
 		idx = 0
 	
+
 		
 		@board = []
 		@board_x.times do |x|
@@ -736,8 +369,52 @@ class KrozGame
 				
 		(@board_y-2).times do |y|
 			(@board_x-2).times do |x|				
-				@board[x+1][y+1] = TileFloor				
+				@board[x+1][y+1] = TileFloor					
 				case data[idx]
+					when "R"
+						@board[x+1][y+1] = TileFloorWater	
+					when "-"						
+						# open space "stop"
+						@components << CompStop.new(self, x+1, y+1)
+					
+					when "Z"
+						@components << CompFreezeSpell.new(self, x+1, y+1)
+					when "@"
+						# trap 2
+					when "$"
+						# trap 5
+					when "à"
+						# trap 6
+					when "á"
+						# trap 7
+					when "â"
+						# trap 8
+					when "ã"
+						# trap 9
+					when "ä"
+						# trap 10
+					when "å"
+						# trap 11
+					when "æ"
+						# trap 12
+					when "ç"
+						# trap 13
+					
+					when "S"
+						@components << CompSlowSpell.new(self, x+1, y+1)	
+					when "F"
+						@components << CompFastSpell.new(self, x+1, y+1)	
+					when "®"
+						@components << CompShootLeft.new(self, x+1, y+1)	
+						
+					when "/"						
+						@components << CompForest.new(self, x+1, y+1)						
+					when "\\"						
+						@components << CompTree.new(self, x+1, y+1)
+					when ";"
+						@components << CompWeakWallInvisible.new(self, x+1, y+1)
+					when "U"
+						@components << CompTunnel.new(self,x+1,y+1)
 					when "P"
 						@player = CompPlayer.new(self, x+1,y+1)						
 						@components << @player
@@ -746,23 +423,27 @@ class KrozGame
 					when "2"
 						@components << CompMob2.new(self, x+1, y+1)						
 					when "3"
-						@components << CompMob3.new(self, x+1, y+1)						
-						#Tile.new("mob3", Gosu::Color::YELLOW)
+						@components << CompMob3.new(self, x+1, y+1)
 					when "W"
 						@components << CompWhip.new(self, x+1, y+1)						
 					when "+"
 						@components << CompGem.new(self, x+1, y+1)						
 					when "."						
-						@components << CompTrap.new(self, x+1, y+1)
+						@components << CompTrapTeleport.new(self, x+1, y+1)
 					when ">"
 						@components << CompShootRight.new(self, x+1, y+1)						
-					when " "						
+					when " "
+					
 					when "#"						
 						@components << CompWall.new(self, x+1, y+1)
 					when "X"
 						@components << CompWeakWall.new(self, x+1, y+1)										
 					when "C"
 						@components << CompChest.new(self, x+1, y+1)
+					when "Q"
+						@components << CompRing.new(self, x+1, y+1)
+					when "I"
+						@components << CompInvisibility.new(self,x+1,y+1)
 					when "L"
 						@components << CompExit.new(self, x+1, y+1)
 					when "D"
@@ -770,7 +451,9 @@ class KrozGame
 					when "K"
 						@components << CompKey.new(self, x+1, y+1)
 					when "T"
-						@components << CompTeleport.new(self, x+1, y+1)						
+						@components << CompTeleport.new(self, x+1, y+1)
+					when '‘'						
+						@components << CompTrapBlock.new(self, x+1, y+1)
 					when "a".."z"
 						@components << CompLetter.new(self, x+1, y+1, data[idx])
 					else
@@ -787,12 +470,6 @@ class KrozGame
 		# puts @board.size
 		# puts @board[0].size
 	end
-	
-	# main game engine.. update all entities
-	def update(dx)		
-		@animation.update(dx) if @animation		
-		# @components.each do |c| c.update(dx) end
-	end	
 	
 	def floor_tile(x,y)	
 		return @board[x][y]
@@ -849,6 +526,16 @@ class TileFloor
 	
 	def self.color
 		Gosu::Color.argb(0xff_104010)
+	end
+end
+
+class TileFloorWater
+	def self.sprite_name
+		"water"
+	end
+	
+	def self.color
+		Gosu::Color::BLUE
 	end
 end
 

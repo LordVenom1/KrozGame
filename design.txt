@@ -33,6 +33,7 @@ Todo:
 	
 	clean up player action.  needing to recheck right before acting sucks	
 
+    "gems give you points and health"
     "press any key to begin the level"
 	"stairs take you to the next lower level"
 	
@@ -41,6 +42,29 @@ Todo:
 	
 ui should be more agnostic about the game.  just call one update.  game should be aware of pausing..
 
+can monsters hit invis weak walls?  lv 4
+monster speeds...
 ` is trap
-invisibility
-slow_monster
+invisibility 
+block trap on level 2
+slow_monster spell on level 2
+static animation of monsters
+
+still possible to get more than one comp on a pos. rework that.
+level 6 hide weak walls
+level 8 sideways -   Fast:=#234;{or #1}
+  Convert_Format;
+  LavaFlow:=true; LavaRate:=75;
+  GravOn:=true;GravRate:=0;Sideways:=true;
+ end; { Level8 }
+level 10 hide gems
+level 12 lava flow   Fast:=#234;{or #1}
+  Convert_Format;
+  LavaFlow:=true; LavaRate:=30;
+ end; { Level12 }
+ 
+ random levels... level 3
+ 
+ # yikes do we create a new player or just set our player's location to the new place?
+ 
+ 
