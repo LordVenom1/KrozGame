@@ -26,7 +26,7 @@ Goals:
 
 Todo:
 	switch actions to command paradigm
-	simplify component_at... should be a single slot
+DONE	simplify component_at... should be a single slot
 	compare enemy behavior to original
 	build up level designer
 	components are a mess? event system?
@@ -40,17 +40,14 @@ Todo:
 	more cool animations, weak walls crumbling, torches, etc
 	avoid holding a button?  'w' can use multiple whips...
 	
-ui should be more agnostic about the game.  just call one update.  game should be aware of pausing..
-
+move level load/generator to separate file
+flesh out render state more?
 can monsters hit invis weak walls?  lv 4
-monster speeds...
-` is trap
-invisibility 
-block trap on level 2
-slow_monster spell on level 2
 static animation of monsters
+invis things,  hidden things..  
+all the tiles
 
-still possible to get more than one comp on a pos. rework that.
+
 level 6 hide weak walls
 level 8 sideways -   Fast:=#234;{or #1}
   Convert_Format;
@@ -63,8 +60,18 @@ level 12 lava flow   Fast:=#234;{or #1}
   LavaFlow:=true; LavaRate:=30;
  end; { Level12 }
  
- random levels... level 3
+mvoe player tick logic to player component?
+  
+DONE yikes do we create a new player or just set our player's location to the new place?
  
- # yikes do we create a new player or just set our player's location to the new place?
+DONE can an exit tunnel have 0 valid positions?  just check all 8 then abort?
+how to do random generation
+how to do sideways levels?
+
+foundset - hints  (each level: FoundSet:=FoundSet-[0,8,15,17,19..21,22,26,28,36,66];)
+what else can bombs destroy?
+	def on_bomb
+		inactivate
+	end
  
  
