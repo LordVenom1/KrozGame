@@ -3,39 +3,55 @@ require './components.rb'
 require './renderer.rb'
 
 class Effect
-	def initialize(default_activation_duration, &on_finish_block)
+	def initialize(default_activation_duration, &on_finish_proc)
 		@default_activation_duration = default_activation_duration
 		@duration = 0.0
-		@on_finish = on_finish_block
+		@on_finish = on_finish_proc	
+		#@on_update = nil
+		@component = nil
 	end
 	
 	def active?
 		@duration > 0.0
 	end
 	
+	def link_component=(c)
+		@component = c
+	end
+	
+	# def set_on_update_func(f)
+		# @on_update = f
+	# end
+	
 	def activate(dur = nil)		
-		@duration += dur ? dur : @default_activation_duration # extend effect if already active
+		# picking up multiple copies of a spell doesn't extend the timer
+		@duration = dur ? dur : @default_activation_duration
 	end
 	
 	def clear
 		@duration = 0.0
 	end
 	
-	def update(dx)
-		if active?
-			@duration -= dx
+	def update(dt)
+		if active?		
+			@duration -= dt			
 			if @duration < 0.0
 				@duration = 0.0 
 				@on_finish.call(self) if @on_finish
 			end
-		end
+		end		
+	end	
+	
+	def update_component(dt)
+		@component.update(dt) if @component and @component.active
 	end
 end
+
 
 class KrozGame
 	attr_reader :board_x, :board_y, :player
 	attr_reader :episode, :mission
-	attr_reader :effects
+	attr_reader :effects, :blocking_effects
 	attr_reader :paused
 	attr_reader :render_state
 
@@ -54,9 +70,7 @@ class KrozGame
 		
 		@floor = Array.new(@board_x * @board_y, TileFloor)
 		@board = Array.new(@board_x * @board_y, nil)
-		@components = []
-		
-		load_sprites()
+		@components = []		
 		
 		@episode = :kingdom # kingdom of kroz (remake?)
 		@mission = 1 # level 1
@@ -69,13 +83,19 @@ class KrozGame
 			slow_monster: Effect.new(10.0),
 			freeze_monster: Effect.new(10.0),
 			speed_monster: Effect.new(10.0),
-			invisible_player: Effect.new(8.0),
-			flash: Effect.new(2.0)
+			invisible_player: Effect.new(8.0)			
 		}
 		
-		load_level()
+		@blocking_effects = {
+			flash: Effect.new(1.5) do |e|
+				@render_state.clear_flash
+				e.activate if @render_state.current_flash
+			end
+		}
+		
+		load_level()		
 
-		@paused = true				
+		
 		
 		@next_player_update = PLAYER_TICK
 		@next_game_update = GAME_TICK
@@ -83,6 +103,11 @@ class KrozGame
 		@render_state = RenderState.new()
 		
 		flash("welcome")
+	end
+	
+	# yikes
+	def effects
+		@effects
 	end
 		
 	def component_at(x,y)
@@ -97,7 +122,7 @@ class KrozGame
 	
 	def place_on_board(comp,x,y)		
 		c = component_at(x,y)
-		raise "component already here #{c} - #{x},#{y}" if c and c.active
+		raise "component already here #{comp} -  #{c}" if c and c.active
 		@board[x + y * @board_x] = comp
 	end
 	
@@ -113,23 +138,15 @@ class KrozGame
 	end
 	
 	def flash(msg)
-		@render_state.add_flash(msg)		
-		@effects[:flash].activate unless @effects[:flash].active?		
+		@render_state.add_flash(msg)				
+		@blocking_effects[:flash].activate if not @blocking_effects[:flash].active?
 	end
 	
 	def slow_monster
 		@effects[:slow_monster].activate
 		@next_game_update = GAME_TICK * 6
 	end
-	
-	def toggle_pause
-		@paused = @paused ? false : true
-		@last_update = Time.now() if not @paused			
-	end
-		
-	def blocking_animation_running?
-		@components.select do |c| c.active and c.blocking_animation? end.size > 0
-	end
+			
 	
 	def teleport_player
 		while true
@@ -141,10 +158,22 @@ class KrozGame
 			end			
 		end
 	end
+	
+	
+	def pause
+		@paused = true
+	end 
+	
+	def unpause
+		@paused = false
+		@last_update = Time.now() if not @paused
+	end
 		
 	def handle_action(action, *args)
 		if action == :pause
-			toggle_pause
+			pause
+		elsif action == :unpause
+			unpause
 		elsif action == :set_location
 			c = component_at(*args)
 			@player.set_location(*args) unless (c and not c.can_player_walk?) or (args.first == @player.x and args.last == @player.y)
@@ -157,50 +186,41 @@ class KrozGame
 	end
 	
 	# main game engine.. update all entities		
-	def update(dx)
-		return if @paused
+	def update(dt)
+		@blocking_effects.each do |name,effect|
+			effect.update(dt)
+		end
+		
+		# update blocking components only if we are blocked
+		if @blocking_effects.values.any? do |e| e.active? end
+			@blocking_effects.each do |name,e| e.update_component(dt) end
+			return
+		end
+		
+		return if @paused		
 		
 		@effects.each do |name,effect|
 			# puts effect if effect.class != Effect
-			effect.update(dx)
-		end
-		
-		if not @effects[:flash].active?			
-			@render_state.clear_flash if @render_state.current_flash
-			@effects[:flash].activate if @render_state.current_flash			
+			effect.update(dt)
 		end
 			
-		@components.each do |c| c.update(dx) end
+		@components.each do |c| c.update(dt) end
 		
-		if not blocking_animation_running?		
-			@next_game_update -= dx
-			if @next_game_update < 0.0
-				game_tick()
-				@next_game_update = GAME_TICK
-				@next_game_update *= 6 if @effects[:slow_monster].active?
-				@next_game_update /= 2 if @effects[:speed_monster].active?
-			end
-		
-			@next_player_update -= dx
-			if @next_player_update < 0.0
-			
-				# do this as an effect instead?
-				# "side-ways" level: move down if not on stable ground
-				if @episode == :kingdom and @mission == 8
-					
-				end
-					# c = component_at(@player.x,@player.y+1)
-					# if not [CompWall,CompWeakWall,CompBorder].include? c.class
-						# @next_player_action = :move_down
-					# end
-				# end
-			
-				player_tick(@next_player_action) if @next_player_action
-				@next_player_update = PLAYER_TICK # try not adding, so if we are behind just leave it
-				@next_player_action = nil		
-			end		
+		@next_game_update -= dt
+		if @next_game_update < 0.0
+			game_tick()
+			@next_game_update = GAME_TICK
+			@next_game_update *= 6 if @effects[:slow_monster].active?
+			@next_game_update /= 2 if @effects[:speed_monster].active?
+		end
+	
+		@next_player_update -= dt
+		if @next_player_update < 0.0			
+			player_tick(@next_player_action) if @next_player_action
+			@next_player_update = PLAYER_TICK # try not adding, so if we are behind just leave it
+			@next_player_action = nil		
 		end		
-		
+
 	end	
 	
 	def player_move(x,y)
@@ -212,8 +232,10 @@ class KrozGame
 			else								
 				still_move = c ? c.on_player_walk() : true
 				if still_move
+					play("walk")
 					@player.move(x,y) 
 				
+					# 'replace a rope we just stepped on and are now leaving behind
 					if @player.rope_under?
 						add_component(CompRope.new(self,px,py)) 
 						@player.rope_under = false
@@ -233,11 +255,20 @@ class KrozGame
 		y = @player.y
 		
 		px,py = x,y
+		
+
 	
 		y = y - 1 if [:move_up, :move_upleft, :move_upright].include? action
 		y = y + 1 if [:move_down, :move_downleft, :move_downright].include? action
 		x = x - 1 if [:move_left, :move_upleft, :move_downleft].include? action
 		x = x + 1 if [:move_right, :move_downright, :move_upright].include? action
+		
+		if [:move_up, :move_upleft, :move_upright].include?(action) and @effects[:gravity]			
+			if not location_supported?(x,y)
+				x,y = @player.x, @player.y # reset movement
+			end
+		end
+		
 		player_move(x,y)
 
 		
@@ -248,12 +279,22 @@ class KrozGame
 					c = component_at(@player.x + dir.first, @player.y + dir.last)
 					c.on_whip() if c
 				end	
-				add_component(CompWhipAnimation.new(self, x, y))				
+				anim = CompWhipAnimation.new(self, x, y)
+				add_component(anim)
+				@blocking_effects[:whip] = Effect.new(9999)
+				@blocking_effects[:whip].link_component = (anim)
+				@blocking_effects[:whip].activate
+				# do the effect?				
+				play("swing#{rand(3) + 1}")
+				
+				
 			end
 		elsif action == :teleport
 			if @player.teleports > 0
 				@player.add_teleports(-1)
 				teleport_player
+				play("spell")
+				
 			end
 		elsif action == :next_level
 			next_level
@@ -286,62 +327,11 @@ class KrozGame
 		# @components
 	# end
 	
-	
-	
-	def load_sprites
-		SpriteManager.load_sprite_from_sheet("floor1", "terrain_sprites.png", 0, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("wall1", "terrain_sprites.png", 3, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("border", "terrain_sprites.png", 3, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("water", "terrain_sprites.png", 2, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("tree", "terrain_sprites.png", 1, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("forest", "terrain_sprites.png", 14, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("tunnel", "terrain_sprites.png", 8, 0, 16, 24)
-		
-		SpriteManager.load_sprite_from_sheet("trap_teleport", "item_sprites.png", 3, 2, 16, 24)
-		SpriteManager.load_sprite_from_sheet("shootright", "feature_sprites.png", 11, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("shootleft", "feature_sprites.png", 11, 0, 16, 24)
-		
-		SpriteManager.load_sprite_from_sheet("freeze", "item_sprites.png", 4, 1 , 16, 24)
-		SpriteManager.load_sprite_from_sheet("fast", "item_sprites.png", 7, 0 , 16, 24)
-		SpriteManager.load_sprite_from_sheet("slow", "item_sprites.png", 6, 0 , 16, 24)
-		# 6,7
-		
-		SpriteManager.load_sprite_from_sheet("gem", "item_sprites.png", 3, 1 , 16, 24)
-		SpriteManager.load_sprite_from_sheet("whip", "item_sprites.png", 15, 1 , 16, 24)
-		SpriteManager.load_sprite_from_sheet("ring", "item_sprites.png", 31, 0 , 16, 24)
-		SpriteManager.load_sprite_from_sheet("key", "item_sprites.png", 3, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("chest", "item_sprites.png", 31, 2, 16, 24)
-		# SpriteManager.load_sprite_from_sheet("door", "sys_sprites.png", 5, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("door", "custom.png", 0, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("exit", "feature_sprites.png", 4, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("teleport", "feature_sprites.png", 6, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("bomb", "item_sprites.png", 21, 1, 16, 24)
-				
-		SpriteManager.load_sprite_from_sheet("rock", "item_sprites.png", 24, 2, 16, 24)
-		SpriteManager.load_sprite_from_sheet("nugget", "item_sprites.png", 10, 1, 16, 24)
-		SpriteManager.load_sprite_from_sheet("rope", "creature_sprites.png", 26, 3, 16, 24)
-		
-		SpriteManager.load_sprite_from_sheet("invis", "feature_sprites.png", 7, 0, 16, 24)
-		
-		
-		SpriteManager.load_sprite_from_sheet("sign", "feature_sprites.png", 12, 0, 16, 24)		
-		
-		SpriteManager.load_sprite_from_sheet("tablet", "feature_sprites.png", 16, 0, 16, 24)
-		
-		SpriteManager.load_sprite_from_sheet("player", "creature_sprites.png", 23, 3, 16, 24)
-		SpriteManager.load_sprite_from_sheet("mob1", "creature_sprites.png", 19, 0, 16, 24)
-		SpriteManager.load_sprite_from_sheet("mob2", "creature_sprites.png", 1, 6, 16, 24)
-		SpriteManager.load_sprite_from_sheet("mob3", "creature_sprites.png", 20, 10, 16, 24)
-		SpriteManager.load_sprite_from_sheet("generator", "item_sprites.png", 24, 1, 16, 24)
-		
-		SpriteManager.load_sprite_from_sheet("unknown", "terrain_sprites.png", 21, 0, 16, 24)
-		
-		('a'..'z').each do |letter|			
-			SpriteManager.load_sprite_from_sheet(letter, "letters.png", letter.ord - 97, 0, 16, 24)
-		end
+	def play(name)
+		SoundManager.play(name)
 	end
 		
-	def generate_random_level
+	def generate_random_level(level_data)
 	
 		def place_random(data, char)
 			while true
@@ -353,18 +343,18 @@ class KrozGame
 			end
 		end	
 	
-		data = " " * 1495
+		data = " " * 1472
 		
-		60.times do 
-			place_random(data, "1")
-			place_random(data, "X")
-			place_random(data, "#")			
+		level_data[:data].each do |line|		
+			glyph,cnt = line.strip.split(",")
+			cnt.to_i.times do
+				place_random(data, glyph)
+			end
 		end
 		
-		place_random(data, "L")
-		place_random(data, "P")
+		place_random(data, "P") # set player
 				
-		data
+		level_data[:data] = data
 	end
 	
 	def add_component(c)
@@ -373,117 +363,169 @@ class KrozGame
 		c
 	end
 	
-	def load_level()
+	def location_supported?(x,y)
+		c = component_at(x,y)
+		return true if c.class == CompRope
+		c = component_at(x,y+1)
+		return true if c and c.support_against_gravity?
+		return true if c and c.class == CompPlayer and @player.rope_under?		
+		return false
+	end
 	
-		# clear existing game
+	def place_multiple(num, comp, *args)
+		num.times do
+			attempts = 200
+			found = false
+			while not found
+				
+				loc = random_board_location
+				c = component_at(loc.first,loc.last)
+				if not c or [CompStop].include? c.class # place on stops too
+					c.inactivate if c
+					add_component(comp.new(self,loc.first,loc.last,*args))
+					found = true
+				end
+				
+				attempts -= 1
+				return if attempts == 0  # we tried 200 times, lets just abort
+			end
+		end
+	end
+	
+	
+	def victory!
+		flash("Oh no, something strange is happening!")
+		flash("You are magically transported from Kroz!")
+		flash("Your Gems are worth 100 points each...")
+		@player.add_score(@player.gems * 100)
+		flash("Your Whips are worth 100 points each...")
+		@player.add_score(@player.whips * 100)
+		flash("Your Teleport Scrolls are worth 100 points each...")
+		@player.add_score(@player.teleports * 100)
+		flash("Your Keys are worth 10,000 points each...")
+		@player.add_score(@player.keys * 100)
+		flash("Back at your hut")
+		flash("For years you've waited for such a wonderful archaeological")
+		flash("discovery. And now you possess one of the greatest finds ever!")
+		flash("The Magical Amulet will bring you great fame, and even more")
+		flash("so if you ever learn how to harness the Amulet's magical")
+		flash("abilities.  For now it must wait, though, for Kroz is a huge")
+		flash("place, and still mostly unexplored.")
+		flash("Even with the many dangers that await, you feel another")
+		flash("expedition is in order.  You must leave no puzzle unsolved, no")
+		flash("treasure unfound--to quit now would leave the job unfinished.")
+		flash("So you plan for a good night's rest, and think ahead to")
+		flash("tomorrow's new journey.  What does the mysterious kingdom of")
+		flash("Kroz have waiting for you, what type of new creatures will")
+		flash("try for your blood, and what kind of brilliant treasure does")
+		flash("Kroz protect.  Tomorrow will tell...")
+	end
+	
+	def load_level()
 		unload_level
 		
-	
-		if @episode == :kingdom and [3,5,7,9,11].include? @mission
-			data = generate_random_level()
-		else
-			data = File.read("levels/#{@episode.to_s}_#{@mission}.dat")
-		end
+		@paused = true
 		
-		# puts data.size
-		raise "invalid map #{episode.to_s}_#{MISSIONS[episode][mission]}.dat" unless data.size == 1495 # plus newlines?
-		#puts data[0]		
+		level_data = YAML::load_file("levels/#{@episode.to_s}_#{@mission}.yml")
+		generate_random_level(level_data) if level_data[:mode] == :random
 		
-			
+		level_data[:data] = level_data[:data].gsub(10.chr,"").gsub(13.chr,"")		
+		
+		# puts level_data[:data]
+		# exit
+
+		if level_data[:flags][:gravity]
+		# sideways level
+			flash("sideways!")
+			@effects[:gravity] = Effect.new(0.25) do |e|							
+				if not location_supported?(@player.x, @player.y) and not @player.rope_under?			
+					player_move(@player.x,@player.y+1)		
+				end
+				e.activate
+			end
+			@effects[:gravity].activate
+		else 
+			@effects.delete(:gravity)
+		end		
+		
+		raise "invalid map #{@episode.to_s}_#{@mission}.yml - #{level_data[:data].size} <> 1472" unless level_data[:data].size == 1472 # plus newlines?
+				
 		# borders
 		(0...@board_x).each do |x|
-			# @board[x][0] = TileBorder
-			# @board[x][@board_y-1] = TileBorder
 			add_component(CompBorder.new(self, x, 0))			
 			add_component(CompBorder.new(self, x, @board_y-1))
 		end
 		(1...@board_y-1).each do |y|
-			# @board[0][y] = TileBorder
-			# @board[@board_x-1][y] = TileBorder
 			add_component(CompBorder.new(self, 0, y))
 			add_component(CompBorder.new(self, @board_x-1, y))
 		end
 		
-		idx = 0
 		(1...@board_y-1).each do |y|
 			(1...@board_x-1).each do |x|
-				case data[idx]
-					when "R"
-						#@floor[x + y * @board_x] = TileFloorWater						
+				glyph = level_data[:data][(x-1) + (y-1) * (@board_x-2)]
+				case glyph
+					when "]" # {35} Create
+						add_component(CompTrapMonsterCreate.new(self,x,y,not(level_data[:hide_create])))
+					when "E" # {28} Quake
+						add_component(CompQuakeTrap.new(self,x,y))
+					when "R" # {17} River
 						add_component(CompWater.new(self, x, y))
-					when "-"						
-						# open space "stop"
+					when "-" # {32} Stop - blocks mobs until removed etc
 						add_component(CompStop.new(self, x, y))
-					when "G"
+					when "G" # {36} Generator - generates mobs. score 50 
 						add_component(CompGenerator.new(self,x,y))
-					when "Z"
+					when "Z" # {26} Freeze - spell to freeze all enemies
 						add_component(CompFreezeSpell.new(self, x, y))
-					when "!"
+					when "!" # {42} Tablet - pop up some text.
 						add_component(CompTablet.new(self,x,y))
-					when "B"
-						add_component(CompBomb.new(self,x,y))
-						#bomb
-					when "V"
-						#lava
-					when "=" 
-						#pit
-					when "@"
-						# trap 2
-					when "$"
-						# trap 5
-					when "à"
-						# trap 6
-					when "á"
-						# trap 7
-					when "â"
-						# trap 8
-					when "ã"
-						# trap 9
-					when "ä"
-						# trap 10
-					when "å"
-						# trap 11
-					when "æ"
-						# trap 12
-					when "ç"
-						# trap 13
-					when ")"
-						# trap 3
-					when "•"
-						# spawn a whip...?
-					when "?"
-						# hidden object...
-						# gem pouch?
-					when "*"	
+					when "B" # {21} Bomb - destroy mobs within 4 cells.  leave other things alone
+						add_component(CompBomb.new(self,x,y))						
+					when "V" # {22} Lava - lost 10 gems to walk on.  multiplies on some levels
+						add_component(CompLava.new(self,x,y, level_data[:flags][:lava_rate] || 0.0))
+					when "=" # {23} Pit - fall in and die.  
+						add_component(CompPit.new(self,x,y))					
+					when "ü" # {252} Message - displays a secret message on lv18
+						add_component(CompSecretMessage.new(self,x,y))
+					
+					# when player hits any of these, all with the same value go away
+					# mobs can't touch them until then
+					# {33,37,39,67,224-231}
+					# trap 2,3,4,5,6,7,8,9,10,11,12,13
+					when "@",")","(","$","à","á","â","ã","ä","å","æ","ç" 
+						add_component(CompTrapCage.new(self,x,y,"("))
+					when "?" # {45} chance - gem pouch
+						add_component(CompGemPouch.new(self,x,y))
+					when "N" # {47} wallvanish
+						# wall vanish lv 16
+						add_component(CompWallVanishTrap.new(self,x,y))
+					when "&" # #{41} show gems - generate some gems
+						add_component(CompSpellShowGems.new(self,x,y))
+					when "*" # {27} Nugget
 						add_component(CompNugget.new(self,x,y))		
-					when "0"
+					when "0" # #{65} Rock
 						add_component(CompRock.new(self,x,y))
-					when "S"
+					when "S" # {8} slow time spell
 						add_component(CompSlowSpell.new(self, x, y))
-					when "F"
+					when "F" # {15} speed-up curse
 						add_component(CompFastSpell.new(self, x, y))
-					when "®"
-						add_component(CompShootLeft.new(self, x, y))
-					when "/"						
+					when "¯" # {82} Shoot right
+						add_component(CompShoot.new(self, x, y, :right))
+					when "®" # {83} Shoot left
+						add_component(CompShoot.new(self, x, y, :left))
+					when "/" # {19} Forest - whip always clears
 						add_component(CompForest.new(self, x, y))					
-					when "\\"						
+					when "\\" # {20} Tree
 						add_component(CompTree.new(self, x, y))
-					when ";"
+					when ";" # {29} IBlock - weak wall that has to be bumped first to see
 						add_component(CompWeakWallInvisible.new(self, x, y))
-					when "U"
-						add_component(CompTunnel.new(self,x,y))
-						
-					when "³"
+					when "U" # {25} Tunnel
+						add_component(CompTunnel.new(self,x,y))						
+					when "³" # {75} Rope
 						add_component(CompRope.new(self,x,y))
+					# {76,77,78,79,80} DropRope - cause a matching droprope to turn into a rope
+					# and generate ropes downward to a surface
 					when "¹","º","»","¼","½"
-						add_component(CompDropRope.new(self,x,y))
-	# {75} Rope      = #179; {ALT-179}
-# {}  {76} DropRope  = #25;  {ALT-185}
-# {}  {77}{DropRope}         {ALT-186}
-# {}  {78}{DropRope}         {ALT-187}
-# {}  {79}{DropRope}         {ALT-188}
-# {}  {80}{DropRope}         {ALT-189}						
-						
+						add_component(CompDropRope.new(self,x,y,glyph))										
 					when "P"					
 						if not @player
 							@player = add_component(CompPlayer.new(self,x,y))
@@ -491,126 +533,136 @@ class KrozGame
 							place_on_board(@player,x,y)
 							@player.x, @player.y = x,y
 						end
-					when "1"
+					when "1" # {1} slow monster
 						add_component(CompMob1.new(self, x, y))
-					when "2"
+					when "2" # {2} medium monster
 						add_component(CompMob2.new(self, x, y))
-					when "3"
+					when "3" # {3} fast monster
 						add_component(CompMob3.new(self, x, y))
-					when "ñ"
-						add_component(CompTriggerTrap.new(self,x,y,4,nil))  # open spell
-					when "ò"
+						
+					# trigger trap removes corresponding trigger wall blocks
+					# ñ>4, ò>5, ó>6, H>O, ô>7, õ>8, ö>9
+					when "ñ" # {58} OSpell1
+						add_component(CompTriggerTrap.new(self,x,y,4,nil, not(level_data[:hide_open_wall])))
+					when "ò" # {59} OSpell2
 						add_component(CompTriggerTrap.new(self,x,y,5,nil))
-					when "ó"
+					when "ó" # {60} OSpell3
 						add_component(CompTriggerTrap.new(self,x,y,6,nil))
-					when "H"
+					when "H" # {44} BlockSpell
 						add_component(CompTriggerTrap.new(self,x,y,"O",nil))
-					when "ô"
+					when "ô" # {61} CSpell1
 						add_component(CompTriggerTrap.new(self,x,y,7,CompWall))
-					when "õ"
+					when "õ" # {62} CSpell2
 						add_component(CompTriggerTrap.new(self,x,y,8,CompWall))
-					when "ö"
+					when "ö" # {63} CSpell3
 						add_component(CompTriggerTrap.new(self,x,y,9,CompWall))					
-					when "4"
+					when "4" # {52} OWall1
 						add_component(CompTriggerWallBlock.new(self,x,y,4))
-					when "5"
+					when "5" # {53} OWall2
 						add_component(CompTriggerWallBlock.new(self,x,y,5))
-					when "6"
+					when "6" # {54} OWall3
 						add_component(CompTriggerWallBlock.new(self,x,y,6))	
-					when "O"
+					when "O" # {43} ZBlock
 						add_component(CompTriggerWeakWallBlock.new(self,x,y,"O"))	
-					when "7"
+					when "7" # {55} CWall1
 						add_component(CompTriggerInvisBlock.new(self,x,y,7))
-					when "8"
+					when "8" # {56} CWall2
 						add_component(CompTriggerInvisBlock.new(self,x,y,8))
-					when "9"
+					when "9" # {57} CWall3
 						add_component(CompTriggerInvisBlock.new(self,x,y,9))
-					when "%"
-						# destroy a handful of enemies?												
-					when "W"
+					when "%" # {34} zap spell - kills some enemies
+						add_component(CompAltar.new(self,x,y))												
+					when "W" # {5} Whip pickup
 						add_component(CompWhip.new(self, x, y))
-					when "+"
-						add_component(CompGem.new(self, x, y))
-					when "."						
+					when "+" # {9} gem
+						add_component(CompGem.new(self, x, y, not(level_data[:hide_gems])))
+					when "." # {16} teleport trap
 						add_component(CompTrapTeleport.new(self, x, y))
-					when ">"
-						add_component(CompShootRight.new(self, x, y))
-					when " "
-					# {<}  {48}  { K }
-					# {[}  {49}  { R }
-					# {|}  {50}  { O }
-					# {"}  {51}  { Z }
-					when "#"						
+					when ">" # {46} Statue - passively does damage
+						add_component(CompStatue.new(self, x, y))					
+					when "<" # {48} K - bonus points if you get all 4 in order
+						add_component(CompKROZ.new(self,x,y, "k"))
+					when "[" # {49} R - bonus points if you get all 4 in order
+						add_component(CompKROZ.new(self,x,y, "r"))
+					when "|" # {50} O - bonus points if you get all 4 in order
+						add_component(CompKROZ.new(self,x,y, "o"))						
+					when "\"" # {51} Z - bonus points if you get all 4 in order
+						add_component(CompKROZ.new(self,x,y, "z"))					
+					when "#" # #{14} solid wall, can't be destroyed						
 						add_component(CompWall.new(self, x, y))
-					when "Y"
-						add_component(CompWeakWall.new(self, x, y)) # just a different color? lv 4
-					when "X"
+					when "Y" # gblock - same as weak wall but different color
+						add_component(CompWeakWallAlt.new(self, x, y)) # just a different color? lv 4
+					when "X" # {4} - Block - wall that can be whipped down or eaten by enemies
 						add_component(CompWeakWall.new(self, x, y))
-					when "C"
+					when "C" #{7} chest
 						add_component(CompChest.new(self, x, y))
-					when "Q"
+					when "Q" #{18} Power - ring to increase whip strength
 						add_component(CompRing.new(self, x, y))
-					when "I"
+					when "I" #{10} invisible curse
 						add_component(CompInvisibility.new(self,x,y))
-					when "L"
-						add_component(CompExit.new(self, x, y))
-					when "D"
+					when "L" #{6} stairs
+						add_component(CompExit.new(self, x, y, level_data[:hide_exit]))
+					when "D" #{13} door - must be unlocked with a key to progress
 						add_component(CompDoor.new(self, x, y))
-					when "K"
+					when "`" #{31} IDoor - invisible door - bump to reveal
+						add_component(CompDoorInvis.new(self, x, y))
+					when "K" # {12} Key pickup
 						add_component(CompKey.new(self, x, y))
-					when "T"
+					when "T" # {11} Teleport pickup
 						add_component(CompTeleport.new(self, x, y))
-					when "’"
-						add_component(CompTrapRock.new(self,x,y))
-					when '‘'						
-						add_component(CompTrapBlock.new(self, x, y))
-					when "a".."z"
-						add_component(CompLetter.new(self, x, y, data[idx]))
+					when "A" # {24} Tome
+						add_component(CompTome.new(self,x,y))
+					when "’" #{69}TRock
+						add_component(CompTrapSurround.new(self, x, y, CompRock))
+					when '‘' #{68}TBlock						
+						add_component(CompTrapSurround.new(self, x, y, CompWeakWall))
+					when "“" #{70}TGem
+						add_component(CompTrapSurround.new(self, x, y, CompGem))
+					when "”" #{71}TBlind
+						add_component(CompTrapSurround.new(self, x, y, CompInvisibility))
+					when "•" #{72}TWhip
+						add_component(CompTrapSurround.new(self, x, y, CompWhip))
+					when "–" #{73}TGold
+						add_component(CompTrapSurround.new(self, x, y, CompNugget))
+					when "—" #{74}TTree
+						add_component(CompTrapSurround.new(self, x, y, CompTree))
+					when ":" # {30} IWall - invisible wall - bump to reveal
+						add_component(CompWallInvis.new(self, x, y))
+					when "@" # {33} what glyph should this actually be??
+						add_component(CompMovingBlockTrap.new(self,x,y))
+					when "M" # {38} magic blocks - can start alive or come alive after hitting movingblocktrap
+						add_component(CompMovingBlock.new(self,x,y, not(level_data[:hide_level_mblock])))
+					when "~" # {66} ewall - electrified wall
+						add_component(CompEWall.new(self,x,y))
+					when "a".."z" # literal letters, otherwise walls
+						add_component(CompLetter.new(self, x, y, glyph))
+					when "Ã" # literal exclamation mark
+						add_component(CompLetter.new(self, x, y, "!"))
+
+					#when "ƒ" # {81} not implemented - just says "ERROR!!!" in original
+					when " "
 					else
+						raise "unknown #{mission} #{glyph}"
 						add_component(CompUnknown.new(self, x, y))
 						#Tile.new("floor1", Gosu::Color.argb(0xff_202020))
-				end
-					
-				idx += 1	
-				idx += 1 while [10.chr, 13.chr].include? data[idx] # skip newlines
-				
+				end				
 			end
 		end
-		
-		
-		# sideways level
-		if @episode == :kingdom and @mission == 8
-			flash("sideways!")
-			@effects[:gravity] = Effect.new(0.25) do |e|
-				# puts "falling"
-				c = component_at(@player.x,@player.y+1)
-				if not [CompWall,CompWeakWall,CompBorder].include? c.class					
-					player_move(@player.x,@player.y+1)		
-				end
-				e.activate
-			end
-			@effects[:gravity].activate
-		end
-		
-		# { NOTE: The lines below are special conditions }
-		# if Level=9 then TreeRate:=40;
-		# if Level=15 then begin LavaFlow:=true;LavaRate:=40;end;
-				  
-		# puts @board.size
-		# puts @board[0].size
 	end
 	
 	def unload_level
+		@blocking_effects.each do |name,e| e.clear end
 		@effects.each do |name,e| e.clear end
 		@floor = Array.new(@board_x * @board_y, TileFloor)
 		@board = Array.new(@board_x * @board_y, nil)
 		@components = []
 		@components << @player if @player
+		@player.clear_kroz if @player
 	end
 	
 	def next_level		
 		@mission += 1
-		@mission = 14 if @mission > 14
+		@mission = 25 if @mission > 25
 		
 		load_level()
 	end
@@ -652,7 +704,7 @@ end
 
 # class TileWall < Tile
 	# def initialize()
-		# super("wall1", Gosu::Color::GRAY)
+		# super("wall", Gosu::Color::GRAY)
 	# end
 # end
 
@@ -673,7 +725,8 @@ class TileFloor
 	end
 	
 	def self.color
-		Gosu::Color.argb(0xff_104010)
+		#Gosu::Color.argb(0xff_104010)
+		Gosu::Color::WHITE
 	end
 end
 

@@ -1,24 +1,85 @@
+require 'Set'
+
+
+
+# module ComponentMobsDestroy
+	# def can_mob_walk?
+		# true
+	# end
+	# def on_mob_walk
+		# inactivate
+	# end
+# end
+
+# module Bombable
+	# def on_bomb
+		# inactivate
+	# end
+# end
+
+# module ComponentPowerup
+	# def can_player_walk?
+		# true
+	# end
+	# def on_whip
+		# inactivate
+	# end
+	# def can_mob_walk?
+		# true
+	# end
+	# def on_mob_walk?
+		# inactivate
+	# end
+# end
+
+# module PlayerDestructable
+	# @defense = 7
+	# def can_player_walk?
+		# false
+	# end
+	# def on_whip
+		# rand(@defense) < @game.player.whippower
+	# end
+# end
+
+# module CompImpassible
+	# @cost = 2
+	# def can_mob_walk?
+		# false
+	# end
+	
+	# def can_player_walk?		
+		# false 
+	# end
+	
+	# def on_player_walk_fail
+		# super
+		# @game.player.add_score(-@cost)
+	# end
+# end
+
+
 class Component
 	attr_accessor :x, :y, :active, :layer
 	attr_reader :name # for debugging
-	def initialize(game, x = nil,y = nil, name = "", layer = :space)
+	def initialize(game, x = nil,y = nil, name = "", on_board = true)
 		@game = game
+		@on_board = on_board
 		@x,@y = x,y		
 		@name = name
 		@color = Gosu::Color::WHITE
-		@active = true		
-		@layer = layer
-		@game.place_on_board(self,x,y) if layer == :space
+		@active = true				
+		@game.place_on_board(self,x,y) if @on_board
 	end
 	
 	def inactivate
 		@active = false
-		@game.remove_from_board(self, @x, @y) if @layer == :space
+		@game.remove_from_board(self, @x, @y) if @on_board
 	end
 	
-	def move(ax,ay)	
+	def move(ax,ay)
 		c = @game.component_at(ax,ay)
-		raise "#{c} is already at #{ax},#{ay}" if c
+		raise "#{self.to_s} - #{c} is already at #{ax},#{ay}" if c
 		
 		@game.move_on_board(self, @x, @y, ax, ay)
 		@x,@y = ax,ay
@@ -29,7 +90,7 @@ class Component
 		true
 	end
 	
-	def update(dx)		
+	def update(dt)		
 	end
 	
 	def tick()
@@ -43,7 +104,8 @@ class Component
 		@color
 	end
 		
-	def on_player_walk()
+	def on_player_walk
+		inactivate
 		true
 	end
 		
@@ -54,7 +116,7 @@ class Component
 	end
 	
 	def can_player_walk?()
-		true
+		false
 	end
 	
 	def can_push_rock?()
@@ -83,15 +145,77 @@ class Component
 	
 	def on_whip() # str is 1-7		
 	end
-	
-	def blocking_animation?
+		
+	def support_against_gravity?
 		false
 	end
 	
 	def to_s
-		[self.class.to_s, @name, @active].join(",")
+		[self.class.to_s, @name, @active, "#{@x}, #{@y}"].join(",")
+	end
+	
+	def stops_rope_drop?
+		true
+	end
+	
+	def can_lava_spread?
+		false
+	end
+	
+	def on_lava_spread
+		inactivate
+	end
+	
+	def chance_to_obscure(i)
+		if rand(i) == 0
+			@name = "question"
+			@color = Gosu::Color::WHITE
+		end
 	end
 end
+
+class CompTypePowerup < Component
+	def initialize(game,x,y,name)
+		super
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def can_mob_walk?
+		true
+	end
+	
+	def on_player_walk
+		inactivate
+	end
+	
+	def on_mob_walk
+		inactivate
+	end
+	
+	def on_whip
+		inactivate
+	end
+	
+	def can_lava_spread?
+		true
+	end
+	
+	def on_arrow_hit
+		inactivate
+		false
+	end
+	
+	def can_push_rock?
+		true
+	end
+end
+
+
+
+require './animations.rb'
 
 class CompPlayer < Component
 
@@ -116,8 +240,32 @@ class CompPlayer < Component
 		@gems = 999
 		@whips = 999
 		@teleports = 999
+		@keys = 20
 		
 		@rope = false
+		
+		@letters = Set.new()
+	end
+	
+	def difficulty_mod
+	    # 9:begin Gems:=250;Whips:=100;Teleports:=50;Keys:=1;WhipPower:=3; end;
+		# 8:begin Gems:=20;Whips:=10;end;
+		# 5:Gems:=15;
+		# 2:Gems:=10
+		8
+	end
+	
+	# dunno about this...
+	def add_kroz(letter)
+		@letters << letter
+		if @letters.size == 4 and letter == 'z'
+			add_score(1000)
+			#@letters = Set.new()
+		end
+	end
+	
+	def clear_kroz
+		@letters = Set.new()
 	end
 	
 	def rope_under=(val)
@@ -132,7 +280,7 @@ class CompPlayer < Component
 		2 + @rings
 	end
 	
-	def update(dx)
+	def update(dt)
 	end
 	
 	# used to change the player's location outside the normal game
@@ -149,8 +297,9 @@ class CompPlayer < Component
 		!@game.effects[:invisible_player].active?		
 	end
 	
+	# scores in the game are x10 what they are coded as?? or the victory is only 1/10th???
 	def add_score(s)
-		@score += s
+		@score += s * 10
 		s = 0 if s < 0
 	end
 	
@@ -166,11 +315,11 @@ class CompPlayer < Component
 	end
 	
 	def add_rings(cnt)
-		@rings += 1
+		@rings += cnt
 	end
 	
 	def add_keys(cnt)
-		@keys += 1
+		@keys += cnt
 	end
 	
 	def add_teleports(cnt)
@@ -185,13 +334,17 @@ class CompPlayer < Component
 		
 end
 
-class CompInvisibility < Component
+###############################################################################
+#  Powerups 
+###############################################################################
+
+class CompInvisibility < CompTypePowerup
 	def initialize(game,x,y)
 		super(game,x,y,"invis")
-	end
+	end	
 	
 	def on_player_walk		
-		inactivate()
+		super
 		@game.flash("You have been cursed with invisibility.  Enemies can still see you!")
 		@game.player.add_score(10)
 		@game.effects[:invisible_player].activate
@@ -199,19 +352,245 @@ class CompInvisibility < Component
 	end
 end
 
+class CompWhip < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"whip")
+		@color = Gosu::Color::YELLOW
+	end 
+	
+	def on_player_walk()
+		super
+		@game.player.add_whips(1)
+		@game.player.add_score(1)
+		true
+	end
+end	
+
+class CompKROZ < CompTypePowerup
+	def initialize(game,x,y,letter)
+		super(game,x,y,letter)		
+		@color = Gosu::Color::WHITE
+	end
+	
+	def on_player_walk
+		super
+		@game.player.add_kroz(@name)
+		true
+	end
+end
+
+class CompChest < CompTypePowerup
+	def initialize(game,x,y)	
+		super(game,x,y,"chest")
+		@color = Gosu::Color::YELLOW		
+		chance_to_obscure(20)		
+	end
+	
+	def on_player_walk()		
+		super
+		g = 3 + rand(3) * 2
+		w = 1 + rand(3)
+		@game.play("door")
+		@game.player.add_gems(g)
+		@game.player.add_whips(w)
+		@game.player.add_score(5)
+		@game.flash("you found #{g} gems and #{w} whips!")
+		true
+	end
+end	
+
+class CompGem < CompTypePowerup
+	def initialize(game,x,y,visible = true)
+		super(game,x,y,"gem")
+		@visible = visible
+		@color = Gosu::Color.argb(0xff_FB00F2)
+	end 
+	
+	def visible?
+		@visible
+	end
+	
+	def on_player_walk()	
+		super	
+		@game.player.add_gems(1)
+		@game.player.add_score(1)
+		@game.play("gem")
+		true
+	end
+end	
+
+class CompGemPouch < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"question")
+		@color = Gosu::Color::WHITE
+	end
+	
+	def on_player_walk?
+		super
+		@game.play("pouch")
+		g = rand(@player.difficulty_mod) + 13
+		@player.add_score(100)
+		@game.flash("You found a Pouch containing #{g} Gems!")
+		@player.add_gems(g)
+		true
+	end
+end
+
+class CompKey < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"key")
+		@color = Gosu::Color.argb(0xff_FB00F2)
+		chance_to_obscure(25)
+	end 
+	
+	def on_player_walk()		
+		super
+		@game.player.add_keys(1)
+		@game.player.add_score(1)
+		@game.play("pouch")
+		true
+	end
+end
+
+class CompNugget < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"nugget")
+		@color = Gosu::Color::YELLOW
+	end
+	
+	def on_player_walk
+		super
+		@game.player.add_score(50)
+		true
+	end
+end
+
+class CompTeleport < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"teleport")
+		@color = Gosu::Color.argb(0xff_FB00F2)
+	end 
+	
+	def on_player_walk
+		super
+		@game.add_score(1)
+		@game.player.add_teleports(1)
+		true
+	end
+
+end	
+
+class CompSecretMessage < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"message")
+	end 
+	
+	def visible? 
+		false
+	end
+	
+	def on_player_walk
+		super
+		@game.flash("You notice a secret message carved into the old tree...")
+		@game.flash("\"Goodness of Heart Overcomes Adversity.\"")
+		@game.flash("Reveal that you found this message to Scott Miller...")
+		@game.flash("And receive a \"MASTER KROZ CERTIFICATE\" to hang on your wall!!")
+		@game.flash("Only the first 100 players to report this...")
+		@game.flash("Will be awarded the certificate.  Congratulations!")
+	end
+end
+
+class CompTome < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"tome")
+	end
+	
+	def on_player_walk
+		super
+		@game.player.add_score(5000)
+		@game.flash("The Magical Amulet of Kroz is finally yours--50,000 points!")
+		@game.flash("Congratualtions, Adventurer, you finally did it!!!")
+		@game.add_component(CompExitFinal.new(@game,34,6))
+	end
+end
+
+class CompTablet < CompTypePowerup
+	def initialize(game,x,y)
+		super(game,x,y,"tablet")
+		@color = Gosu::Color::YELLOW
+	end
+		
+	def on_player_walk
+		inactivate
+		case @game.episode 
+			when :kingdom
+				case @game.mission
+					when 1
+						@game.flash("Once again you uncover the hidden tunnel leading to Kroz!")
+					when 2
+						@game.flash("Warning to all Adventurers:  No one returns from Kroz!")
+					when 4
+						@game.flash("Adventurer, try the top right corner if you desire.")
+					when 6
+						@game.flash("A strange magical gravity force is tugging you downward!")
+					when 8
+						@game.flash("You have choosen the greedy path Adventurer!")	
+					when 9
+						@game.flash("A magical forest grows out of control in this region of Kroz!")
+					when 10
+						@game.flash("Sometimes, Adventurer, Gems can be crystal clear.")
+					when 12
+						@game.flash("The lava will block a slow Adventurer''s path!")
+					when 14
+						@game.flash("Follow the sequence if you wish to be successful.")
+					when 18
+						@game.flash("On the Ancient Tablet is a short Mantra, a prayer...")
+						@game.flash("You take a deep breath and speak the words aloud...")
+						@game.flash("Barriers of water, like barriers in life, can always be...")
+												
+						@game.components.select do |c| c.class == CompWater and c.active end.each do |c|
+							c.inactivate
+							@game.add_component(CompTriggerWeakWallBlock.new(@game,c.x,c.y,"O"))
+						end
+						
+						@game.flash("...Overcome!")
+					when 20
+						@game.flash("These walls will seek to entrap you!")
+					when 22
+						@game.flash("If goodness is in my heart, that which flows shall...")						
+						
+						@game.components.select do |c| c.class == CompWater and c.active end.each do |c|
+							c.inactivate
+							@game.add_component(CompNugget.new(@game,c.x,c.y))
+						end
+						
+						@game.flash("...Turn to Gold!")
+					else
+						raise "no tablet defined for #{@game.episode.to_s} - #{@game.mission}"
+					
+				end
+			else
+				raise @game.episode.to_s
+		end
+	end
+	
+	def can_lava_spread?
+		false
+	end
+end
+
+
+
+###############################################################################
+#  Base Terrain
+###############################################################################
+
 class CompBorder < Component
 	def initialize(game,x,y)
 		super(game,x,y,"border")
 		@color = Gosu::Color::YELLOW
 	end
-	
-	def update(dx)
-	end
-	
-	def sprite_name
-		@name
-	end
-	
+		
 	def can_player_walk?()
 		false
 	end
@@ -219,7 +598,7 @@ class CompBorder < Component
 	def on_player_walk_fail()
 		# subtract score, 
 		# play noise
-		@game.player.add_score(-20)
+		@game.player.add_score(@game.mission * -2)
 		@game.flash("An Electrified Wall blocks your way.")
 	end
 	
@@ -227,7 +606,319 @@ class CompBorder < Component
 		false
 	end 
 	
+	def support_against_gravity?
+		true
+	end
 end
+
+class CompStop < Component
+	def initialize(game,x,y)
+		super(game,x,y,"stop")
+	end
+	
+	def visible?
+		false
+	end
+	
+	def can_mob_walk?
+		false
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		inactivate
+		true
+	end
+	
+	def on_whip
+		inactivate
+	end
+			
+	def stops_rope_drop?
+		false
+	end
+	
+	def can_push_rock?
+		true
+	end
+	
+	def on_push_rock(rock)
+		inactivate
+	end
+end
+
+class CompRock < Component
+	def initialize(game,x,y)
+		super(game,x,y,"rock")
+		@color = Gosu::Color::GRAY
+	end
+	
+	def can_mob_walk?
+		false
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		# try to move boulder in same direction as player before player is allowed to move
+		v = [@x - @game.player.x, @y - @game.player.y]
+		nx = @x + (@x - @game.player.x)
+		ny = @y + (@y - @game.player.y)
+		c = @game.component_at(nx,ny)
+		if (c and c.can_push_rock?) or not c
+			c.on_push_rock(self) if c			
+			move(@x + v.first, @y + v.last) if @active
+			true
+		else
+			false
+		end
+	end
+	
+	def support_against_gravity?
+		true
+	end
+	
+	def on_player_walk_after
+	end
+	
+	def on_whip
+		if (rand(50)) < @game.player.whip_power
+			inactivate
+			@game.player.add_score(100)
+		end
+	end
+end
+
+
+class CompWall < Component
+	def initialize(game,x,y)
+		super(game,x,y,"wall")
+		@color = Gosu::Color::GRAY
+	end 
+	
+	def can_player_walk?()
+		false
+	end
+	
+	def on_player_walk_fail		
+		@game.player.add_score(-2)
+	end
+	
+	def support_against_gravity?
+		true
+	end
+		
+	def can_mob_walk?()
+		false
+	end 
+
+	def on_arrow_hit()
+		true # stop the arrow
+	end
+end	
+
+class CompWeakWall < Component
+	WALL_RESIST = 4
+	def initialize(game,x,y)
+		super(game,x,y,"wall")
+		@color = Gosu::Color.argb(0xff_A52A2A)
+	end 
+	
+	def can_player_walk?()
+		false
+	end
+	
+	def on_player_walk_fail
+		@game.player.add_score(-2)
+	end
+
+	def on_mob_walk()
+		inactivate
+		true
+	end
+
+	def on_whip()
+		# raise 'invalid str' unless (1..7).include? str		
+		inactivate if (rand(7)) < @game.player.whip_power
+	end
+	
+	def on_arrow_hit()
+		return true
+	end
+	
+	def support_against_gravity?
+		true
+	end
+end
+
+class CompWeakWallAlt < CompWeakWall
+	def initialize(game,x,y)
+		super(game,x,y)
+		@color = Gosu::Color::WHITE
+	end
+end
+
+class CompTree < CompWeakWall
+	def initialize(game,x,y)
+		super(game,x,y)
+		@name = "tree"
+		# @color = Gosu::Color::GREEN
+	end
+	
+	def can_mob_walk?()
+		false
+	end
+end
+
+class CompForest < CompWeakWall
+	def initialize(game,x,y)
+		super(game,x,y)
+		@name = "forest"
+		@color = Gosu::Color::GREEN
+	end
+	
+	def can_mob_walk?()
+		false
+	end	
+	
+	def on_whip
+		# kingdom4.inc line 415 seems to set whippower to 8 then roll rand(7)
+		inactivate
+	end
+end
+
+class CompExit < Component
+	def initialize(game,x,y,visible)
+		super(game,x,y,"exit")
+		@color = Gosu::Color::GREEN
+		@visible = visible
+	end 
+	
+	def visible?
+		@visible
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk()		
+		super
+		@game.player.add_score(@game.mission)		
+		@game.next_level()
+		false
+	end
+end
+
+class CompExitFinal < CompExit
+	def initialize(game,x,y)
+		super(game,x,y)
+		@color = Gosu::Color::YELLOW
+	end
+	
+	def on_player_walk()
+		inactivate
+		@game.victory
+	end
+end
+
+class CompPit < Component
+	def initialize(game,x,y)
+		super(game,x,y,"pit")
+	end
+	
+	def can_mob_walk? 
+		false
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		# fall to death!
+		flash "you fall to your death :("
+	end
+	
+	def can_push_rock?
+		true
+	end
+	
+	def on_push_rock(rock)
+		rock.inactivate
+		true
+	end
+end
+
+class CompWater < Component
+	def initialize(game,x,y)
+		super(game,x,y,"water")
+		@color = Gosu::Color::BLUE
+	end
+	
+	def can_player_walk?
+		false
+	end
+	
+	def can_mob_walk?
+		false
+	end
+	
+	def on_player_walk_fail
+		@game.player.add_score(-2)
+	end
+end
+
+class CompDoor < Component
+	def initialize(game,x,y)
+		super(game,x,y,"door")
+		# @color = Gosu::Color.argb(0xff_A52A2A)
+		@color = Gosu::Color::GREEN
+	end 
+	
+	def can_player_walk?()
+		@game.player.keys > 0
+	end
+	
+	def on_player_walk
+		inactivate
+		@game.player.add_keys(-1)
+		@game.player.add_score(1)
+		@game.play("door")
+		true
+	end
+end
+
+
+
+class CompLetter < Component
+	def initialize(game,x,y, letter)
+		super(game,x,y,letter)
+		@color = Gosu::Color::WHITE # font is red
+	end
+	
+	def can_mob_walk?
+		false
+	end
+	
+	def can_player_walk?()
+		false
+	end
+	
+	def support_against_gravity?
+		true
+	end
+end
+
+###############################################################################
+#  Enemies
+###############################################################################
+
 
 class CompMob < Component
 	def initialize(game,x,y,name,power)
@@ -264,6 +955,13 @@ class CompMob < Component
 			ty = @y - 1
 		end 
 		
+		if @game.effects[:gravity]
+			ty = @y # clear y differences
+			if not @game.location_supported?(tx,ty)
+				tx = @x # clear x difference, only walk on solid ground
+			end
+		end
+		
 		if @x != tx or @y != ty
 			c = @game.component_at(tx, ty)
 			if not c or c.can_mob_walk?				
@@ -275,19 +973,31 @@ class CompMob < Component
 		@next_tick = @speed if @active
 	end
 	
+	def can_player_walk?
+		true
+	end
+	
+	def can_lava_spread?
+		true
+	end
+	
 	def on_bomb()
 		inactivate
 	end
 	
 	def on_whip()
 		inactivate
+		on_death		
+	end
+	
+	def on_death		
 		@game.player.add_score(@power)
 	end
 	
-	def on_player_walk()
+	def on_player_walk()	
 		inactivate
 		@game.player.add_gems(-@power)
-		@game.player.add_score(@power)
+		on_death
 		true
 	end
 	
@@ -307,6 +1017,11 @@ class CompMob1 < CompMob
 		super(game,x,y,"mob1",1)
 		@color = Gosu::Color::RED
 	end
+	
+	def on_death
+		super
+		@game.play("squish1")
+	end
 end
 
 class CompMob2 < CompMob
@@ -314,6 +1029,11 @@ class CompMob2 < CompMob
 		super(game,x,y,"mob2",2)
 		@color = Gosu::Color::GREEN
 	end
+	
+	def on_death
+		super
+		@game.play("squish2")
+	end	
 end
 
 class CompMob3 < CompMob
@@ -321,334 +1041,12 @@ class CompMob3 < CompMob
 		super(game,x,y,"mob3",3)
 		@color = Gosu::Color::CYAN
 	end
-end
-
-class CompWhip < Component
-	def initialize(game,x,y)
-		super(game,x,y,"whip")
-		@color = Gosu::Color::YELLOW
-	end 
 	
-	def on_player_walk()
-		inactivate
-		@game.player.add_whips(1)
-		@game.player.add_score(1)
-		true
-	end
-	
-	def on_mob_walk()
-		inactivate
-		false
-	end 
-	
-	def on_whip()
-		inactivate	
-	end		
-end	
-
-class CompWhipAnimation < Component
-	WHIP_TIME = 0.02
-	def initialize(game,x,y)
-		super(game,x,y,"whip",:anim)
-		@color = Gosu::Color::RED
-		@duration = WHIP_TIME
-		@rx, @ry = x,y
-		@n = 0
-	end
-	
-	def update(dx)
-	
-		@duration -= dx
-		if @duration <= 0.0
-			@n += 1
-			@duration += WHIP_TIME
-			if @n == KrozGame::DIRS.size
-				inactivate
-				@n = 0
-			end
-		end
-	end	
-	
-	def x
-		@rx + KrozGame::DIRS[@n].first
-	end
-		
-	def y
-		@ry + KrozGame::DIRS[@n].last
-	end
-	
-	def blocking_animation?
-		true
+	def on_death
+		super
+		@game.play("squish3")
 	end
 end
-
-class CompStop < Component
-	def initialize(game,x,y)
-		super(game,x,y,"stop")
-	end
-	
-	def visible?
-		false
-	end
-	
-	def can_mob_walk?
-		false
-	end
-	
-	def on_player_walk
-		inactivate
-		true
-	end
-	
-	def on_whip
-		inactivate
-	end
-end
-
-class CompChest < Component
-	def initialize(game,x,y)
-		super(game,x,y,"chest")
-		#@color = Gosu::Color.argb(0xff_A52A2A)
-		@color = Gosu::Color::YELLOW
-	end
-	
-	def on_player_walk()		
-		inactivate
-		g = 3 + rand(3) * 2
-		w = 1 + rand(3)
-		@game.player.add_gems(g)
-		@game.player.add_whips(w)
-		@game.player.add_score(5)
-		@game.flash("you found #{g} gems and #{w} whips!")
-		true
-	end
-	
-	def on_mob_walk()
-		inactivate
-		false
-	end 
-	
-	def on_arrow_hit()
-		inactivate
-		false
-	end
-
-end	
-
-class CompGem < Component
-	def initialize(game,x,y)
-		super(game,x,y,"gem")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk()		
-		inactivate
-		@game.player.add_gems(1)
-		@game.player.add_score(1)
-		true
-	end
-
-	def on_mob_walk()
-		inactivate
-		false
-	end 
-	
-	def on_arrow_hit()
-		inactivate
-		false
-	end
-end	
-
-class CompKey < Component
-	def initialize(game,x,y)
-		super(game,x,y,"key")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk()		
-		inactivate
-		@game.player.add_keys(1)
-		@game.player.add_score(1)
-		true
-	end
-
-	def on_mob_walk()
-		inactivate
-		false
-	end 
-	
-	def on_arrow_hit()
-		inactivate
-		false
-	end
-end	
-
-class CompTrapTeleport < Component
-	def initialize(game,x,y)
-		super(game,x,y,"trap_teleport")
-		@color = Gosu::Color::GREEN
-	end 
-	
-	def can_push_rock?
-		true
-	end
-	
-	def on_whip()
-		inactivate
-	end
-	
-	def on_player_walk
-		@game.flash "Teleport Trap!"
-		inactivate
-		@game.teleport_player
-		@game.player.add_score(-5)
-		false
-	end
-end	
-
-class CompTrapBlock < Component
-	def initialize(game, x, y)
-		super(game,x,y,"trap1") # invis
-		@color = Gosu::Color::WHITE
-	end
-	
-	def visible?
-		false
-	end
-	
-	def place_weak_wall(x,y)
-		c = @game.component_at(x,y)
-		c.active = false if c and [CompStop].include? c.class
-		raise "something already there #{c.class.to_s}" if c and c.active		
-		@game.add_component(CompWeakWall.new(@game, x,y))
-	end
-	
-	def on_player_walk
-		inactivate		
-		true
-	end
-	
-	def on_player_walk_after
-		case @game.episode 
-			when :kingdom
-				case @game.mission
-					when 2
-						place_weak_wall(7,3)
-					when 4
-						place_weak_wall(53,14)
-						place_weak_wall(54,14)
-						place_weak_wall(54,16)
-						place_weak_wall(55,16) 
-					when 8
-						# wut
-						place_weak_wall(10,55)
-						place_weak_wall(10,56)
-						place_weak_wall(11,56)
-					else
-						raise KrozGame::MISSIONS[@game.episode][@game.mission].to_s
-					
-				end
-			else
-				raise @game.episode.to_s
-		end
-	end
-end
-
-class CompTrapRock < Component
-	def initialize(game, x, y)
-		super(game,x,y,"trap1") # invis
-		@color = Gosu::Color::WHITE
-	end
-	
-	def visible?
-		false
-	end
-		
-	def place_rock(x,y)
-		c = @game.component_at(x,y)
-		c.active = false if c and [CompStop].include? c.class
-		raise "something already there #{c.class.to_s}" if c and c.active		
-		@game.add_component(CompRock.new(@game, x,y))
-	end
-	
-	def on_player_walk
-		inactivate				
-		true
-	end
-	
-	def on_player_walk_after
-		case @game.episode 
-			when :kingdom
-				case @game.mission
-					when 2						
-						place_rock(2,1)
-						place_rock(2,2)
-						place_rock(1,2)
-					when 8
-						place_rock(17,57)
-					else
-						raise KrozGame::MISSIONS[@game.episode][@game.mission].to_s
-					
-				end
-			else
-				raise @game.episode.to_s
-		end
-	end
-end
-
-class CompRock < Component
-	def initialize(game,x,y)
-		super(game,x,y,"rock")
-		@color = Gosu::Color::GRAY
-	end
-	
-	def can_mob_walk?
-		false
-	end
-	
-	def on_player_walk
-		# try to move boulder in same direction as player before player is allowed to move
-		v = [@x - @game.player.x, @y - @game.player.y]
-		nx = @x + (@x - @game.player.x)
-		ny = @y + (@y - @game.player.y)
-		c = @game.component_at(nx,ny)
-		if (c and c.can_push_rock?) or not c
-			c.on_push_rock(self) if c
-			move(@x + v.first, @y + v.last) # check if it can be pushed first...			
-			true
-		else
-			false
-		end
-	end
-	
-	def on_player_walk_after
-	end
-	
-	def on_whip
-		inactivate if (rand(50)) < @game.player.whip_power
-	end
-end
-
-
-class CompWall < Component
-	def initialize(game,x,y)
-		super(game,x,y,"wall1")
-		@color = Gosu::Color::GRAY
-	end 
-	
-	def can_player_walk?()
-		false
-	end
-	
-		
-	def can_mob_walk?()
-		false
-	end 
-
-	def on_arrow_hit()
-		true # stop the arrow
-	end
-end	
 
 class CompGenerator < Component
 	def initialize(game,x,y)
@@ -657,7 +1055,7 @@ class CompGenerator < Component
 		@game.effects[self] = Effect.new(3.0)
 	end
 	
-	def update(dx)
+	def update(dt)
 		if not @game.effects[self].active?
 			spawn_mob
 			@game.effects[self].activate
@@ -665,14 +1063,15 @@ class CompGenerator < Component
 	end
 	
 	def spawn_mob
-		KrozGame::DIRS.shuffle.each do |dir|
-			c = @game.component_at(@x + dir.first, @y + dir.last)
-			if not c or c.can_mob_walk? then
-				@game.add_component(CompMob1.new(@game,@x + dir.first, @y + dir.last))
+	
+		while true
+			pos = @game.random_board_location	
+			c = @game.component_at(pos.first, pos.last)
+			if not c then # any others?
+				@game.add_component(CompMob1.new(@game, pos.first, pos.last))
 				return
 			end
 		end
-		# do nothing, generator is completely surrounded.
 	end
 	
 	def can_mob_walk?
@@ -691,59 +1090,151 @@ class CompGenerator < Component
 	end
 end
 
-class CompTablet < Component
+class CompStatue < Component
 	def initialize(game,x,y)
-		super(game,x,y,"tablet")
+		super(game,x,y,"statue")
 		@color = Gosu::Color::YELLOW
+		@game.effects[self] = Effect.new(2.0)
+	end
+	
+	def update(dt)
+		if not @game.effects[self].active?
+			deal_damage
+			@game.effects[self].activate
+		end
+	end
+	
+	def on_whip
+		if rand(50) > @game.player.whip_power
+			inactivate 
+			@game.player.add_score(10)
+			@game.flash("You've destroyed the Statue!  Your Gems are now safe.")
+		end
+	end
+	
+	def deal_damage
+		@game.player.add_gems(-1)
+	end
+end
+
+###############################################################################
+#  Traps and Spells
+###############################################################################
+
+class CompTypeTrap < Component
+	def initialize(game,x,y,name)
+		super(game,x,y,name)
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def can_mob_walk?
+		true
+	end
+	
+	def visible?
+		false
+	end
+	
+	def on_whip()
+		inactivate
+	end	
+end
+
+# mobs can't walk on these until the player steps on any one of them
+class CompTrapCage < CompTypeTrap
+	attr_reader :code
+	def initialize(game,x,y,code)
+		super(game,x,y,"trigger")
+		@code = code
 	end
 		
+	def can_mob_walk?
+		false
+	end
+	
+	def on_whip
+	end
+	
 	def on_player_walk
-		inactivate
-		case @game.episode 
-			when :kingdom
-				case @game.mission
-					when 8
-						@game.flash("You have choosen the greedy path Adventurer!")
-					when 4
-						place_weak_wall(53,14)
-						place_weak_wall(54,14)
-						place_weak_wall(54,16)
-						place_weak_wall(55,16) 
-					else
-						raise KrozGame::MISSIONS[@game.episode][@game.mission].to_s
-					
-				end
-			else
-				raise @game.episode.to_s
+		@game.components.select do |c| c.class == CompTrapCage and c.code == @code end.each do |c|
+			c.inactivate
 		end
 	end
 end
 
-class CompWeakWall < Component
-	WALL_RESIST = 4
+	
+# send the player to a random location
+class CompTrapTeleport < CompTypeTrap
 	def initialize(game,x,y)
-		super(game,x,y,"wall1")
-		@color = Gosu::Color.argb(0xff_A52A2A)
+		super(game,x,y,"trap_teleport")
+		@color = Gosu::Color::GREEN
 	end 
 	
-	def can_player_walk?()
-		false
-	end
-
-	def on_mob_walk()
-		inactivate
+	def can_push_rock?
 		true
 	end
 
-	def on_whip()
-		# raise 'invalid str' unless (1..7).include? str		
-		inactivate if (rand(7)) < @game.player.whip_power
+	def can_player_walk?
+		true
 	end
 	
-	def on_arrow_hit()
-		return true
+	def on_player_walk
+		super
+		@game.flash "Teleport Trap!"		
+		@game.teleport_player
+		@game.play("spell")
+		@game.player.add_score(-5)
+		false
 	end
 end	
+
+# surround the square with the specified items, only on empty spaces
+class CompTrapSurround < CompTypeTrap
+	def initialize(game, x, y, comp)
+		super(game,x,y,"trap") # invis
+		@color = Gosu::Color::WHITE
+		@comp = comp
+	end
+		
+	def place_comp(x,y)
+		c = @game.component_at(x,y)
+		c.active = false if c and [CompStop].include? c.class
+		# raise "something already there #{c.class.to_s}" if c and c.active
+		return if c and c.active
+		@game.add_component(@comp.new(@game, x,y))
+	end
+	
+	def on_player_walk
+		super
+	end
+	
+	def on_player_walk_after
+		@game.play("trap") # if bad... play $ if good
+		KrozGame::DIRS.each do |d|
+			place_comp(@x + d.first, @y + d.last)
+		end		
+	end
+end
+
+
+class CompWallInvis < CompWall
+	def initialize(game,x,y)
+		super	
+		@visible = false
+	end
+	def visible?
+		@visible
+	end
+	def on_player_walk_fail()
+		@visible = true
+	end	
+	def support_against_gravity?
+		@visible
+	end	
+end
 
 class CompWeakWallInvisible < CompWeakWall
 	def initialize(game,x,y)
@@ -756,35 +1247,18 @@ class CompWeakWallInvisible < CompWeakWall
 		@visible
 	end
 	
-	def on_player_walk_fail()
+	def on_player_walk_fail()		
 		@visible = true
 	end
+	
+	def on_whip
+		super if @visible
+	end
+	
+	def support_against_gravity?
+		@visible
+	end
 end	
-
-class CompTree < CompWeakWall
-	def initialize(game,x,y)
-		super(game,x,y)
-		@name = "tree"
-		# @color = Gosu::Color::GREEN
-	end
-	
-	def can_mob_walk?()
-		false
-	end
-end
-
-class CompForest < CompWeakWall
-	def initialize(game,x,y)
-		super(game,x,y)
-		@name = "forest"
-		@color = Gosu::Color::GREEN
-	end
-	
-	def can_mob_walk?()
-		false
-	end	
-end
-	
 
 class CompTunnel < Component
 	def initialize(game,x,y)
@@ -796,62 +1270,63 @@ class CompTunnel < Component
 	def can_player_walk?
 		false
 	end
+	
+	def can_mob_walk?
+		false
+	end
 		
 	def on_player_walk_fail
-		@exit = @game.components.select do |c| c.class == CompTunnel and not(c === self) end.select(1)
-		
-		raise 'unable to find outgoing tunnel' unless @exit
-		
-		KrozGame::DIRS.shuffle.each do |dir|		
-			dx, dy = *dir
-			if not @game.component_at(@pair.x + dx, @pair.y + dy)
-				@game.player.set_location(@pair.x + dx, @pair.y + dy)
-				break
+		@game.components.select do |c| c.class == CompTunnel and not(c === self) end.shuffle.each do |exit|				
+			KrozGame::DIRS.shuffle.each do |dir|		
+				dx, dy = *dir
+				c = @game.component_at(exit.x + dx, exit.y + dy)
+				if not c or [CompStop,CompMob1,CompMob2,CompMob3].include? c.class
+					@game.player.set_location(exit.x + dx, exit.y + dy)
+					return
+				end			
 			end
-		end
-		
-		raise "outgoing tunnel is blocked..." # do we care or just skip the jump?
-		false
+		end 
+		# raise "outgoing tunnel is blocked..." # do we care or just skip the jump?
+		# false
 		# find other tunnel...
 	end
 end
 
-class CompUnknown < Component
-	def initialize(game,x,y)
-		super(game,x,y,"unknown",:trigger)
-		@color = Gosu::Color::YELLOW
-	end 
-end	
+# class CompUnknown < Component
+	# def initialize(game,x,y)
+		# super(game,x,y,"unknown",:trigger)
+		# @color = Gosu::Color::YELLOW
+	# end 
+# end	
 
-class CompExit < Component
+class CompEWall < Component
 	def initialize(game,x,y)
-		super(game,x,y,"exit")
-		@color = Gosu::Color::GREEN
-	end 
+		super(game,x,y,"wall")
+		@color = Gosu::Color::YELLOW
+	end
 	
-	def on_player_walk()
-		# change level...
-		# reset flags...
-		@game.player.add_score(6)
-		
-		@game.next_level()
+	def can_player_walk?
 		false
 	end
-end
-
-class CompNugget < Component
-	def initialize(game,x,y)
-		super(game,x,y,"nugget")
-		@color = Gosu::Color::YELLOW
+	
+	def can_mob_walk?
+		false
 	end
 	
-	def on_player_walk
-		inactivate
-		@game.player.add_score(10)
+	def can_push_rock?
+		true
 	end
 	
-	def on_mob_walk
+	def on_player_walk_fail
+		#shock!
+		@game.player.add_score(@game.mission * -2)
+		@game.player.add_gems(-5)
+		@game.flash("You get shocked by the electrified wall!")
+	end
+	
+	def on_push_rock(rock)
 		inactivate
+		rock.inactivate
 	end
 end
 
@@ -859,8 +1334,12 @@ end
 class CompTriggerInvisBlock < Component
 	attr_reader :code
 	def initialize(game,x,y,code)
-		super(game,x,y,"trigger",:trigger)
+		super(game,x,y,"trigger")
 		@code = code
+	end
+	
+	def can_player_walk?
+		true
 	end
 	
 	def visible?
@@ -868,12 +1347,48 @@ class CompTriggerInvisBlock < Component
 	end
 end
 
+class CompWallVanishTrap < Component
+	def initialize(game,x,y)
+		super(game,x,y,"trigger")
+		#chance_to_obscure(20)
+	end
+	
+	def visible?
+		false
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		super
+		75.times do
+			pos = @game.random_board_location
+			c = @game.component_at(pos.first,pos.last)
+			
+			if c.class == CompWall
+				c.inactivate
+				@game.add_component(CompWallInvis.new(@game,pos.first,pos.last))
+			elsif c.class == CompWeakWall
+				c.inactivate
+				@game.add_component(CompWeakWallInvisible.new(@game,pos.first,pos.last))
+			end
+		end
+	end
+end
+
+
 # a wall that might go away if a trigger is hit
 class CompTriggerWallBlock < CompWall
 	attr_reader :code
 	def initialize(game,x,y,code)
 		super(game,x,y)
 		@code = code
+	end
+	
+	def support_against_gravity?
+		true
 	end
 end
 
@@ -883,19 +1398,28 @@ class CompTriggerWeakWallBlock < CompWeakWall
 	def initialize(game,x,y,code)
 		super(game,x,y)
 		@code = code
+	end	
+
+	def support_against_gravity?
+		true
 	end
 end
 
 # when stepped on, inactivate all comptriggers that have the same 'code', then possible 
 class CompTriggerTrap < Component
-	def initialize(game,x,y,code,replacement)
-		super(game,x,y,:trigger)
+	def initialize(game,x,y,code,replacement,visible = false)
+		super(game,x,y,"altar")
 		@code = code
 		@replacement = replacement
+		@visible = visible
+	end
+	
+	def can_player_walk?
+		true
 	end
 	
 	def visible?
-		false
+		@visible
 	end
 	
 	def on_player_walk
@@ -903,10 +1427,15 @@ class CompTriggerTrap < Component
 		true
 	end 
 	
+	def on_whip
+		@visible = true
+	end
+	
 	def on_player_walk_after
 		@game.components.select do |c| c.class != CompTriggerTrap and c.class.to_s.start_with? "CompTrigger" and c.code == @code end.each do |c|
 			c.inactivate
 			@game.add_component(@replacement.new(@game,c.x,c.y)) if @replacement
+			@game.flash("You triggered Exploding Walls!") if @code == "O"
 		end
 	end
 end
@@ -915,7 +1444,7 @@ end
 class CompTriggerWall < Component
 	attr_reader :code
 	def initialize(game,x,y,code)
-		super(game,x,y,"trigger",:trigger)
+		super(game,x,y,"altar",:trigger)
 		@code = code
 	end
 	
@@ -928,16 +1457,47 @@ class CompTriggerWall < Component
 	# end
 end
 
+class CompAltar < Component
+	def initialize(game,x,y)
+		super(game,x,y,"altar")
+	end
+	
+	def on_player_walk
+		inactivate
+		
+		mobs = @game.components.select do |c|
+			c.class.ancestors.include? CompMob and c.active
+		end
+		
+		# kill 40 or try 500
+		mobs.sample(40).each do |m|
+			m.on_death # kill, get score etc.
+			m.inactivate
+		end
+		
+		true
+	end
+end
+
 
 class CompBomb < Component
 	def initialize(game,x,y)
-		super(game,x,y,"bomb")
-		@color = Gosu::Color::YELLOW
+		if (rand(40) == 0)
+			super(game,x,y,"question")	
+			@color = Gosu::Color::WHITE
+		else
+			super(game,x,y,"bomb")
+			@color = Gosu::Color::YELLOW
+		end
 	end
 	
 	def on_player_walk
 		inactivate
 		explode
+	end
+	
+	def can_mob_walk?
+		false
 	end
 	
 	def explode
@@ -950,117 +1510,88 @@ class CompBomb < Component
 	end 
 end
 
-class CompWater < Component
+class CompQuakeTrap < Component
 	def initialize(game,x,y)
-		super(game,x,y,"water")
-		@color = Gosu::Color::BLUE
-	end
-	
-	def can_player_walk?
-		false
-	end
-	
-	def can_mob_walk?
-		false
-	end
-	
-	def on_player_walk_fail
-		@game.player.add_score(-20)
-	end
-end
-
-class CompDoor < Component
-	def initialize(game,x,y)
-		super(game,x,y,"door")
-		# @color = Gosu::Color.argb(0xff_A52A2A)
-		@color = Gosu::Color::GREEN
-	end 
-	
-	def can_player_walk?()
-		
-		false # player has keys...
-	end
-end	
-
-class CompTeleport < Component
-	def initialize(game,x,y)
-		super(game,x,y,"teleport")
-		@color = Gosu::Color.argb(0xff_FB00F2)
-	end 
-	
-	def on_player_walk
-		inactivate
-		@game.player.add_teleports(1)
-		true
-	end
-	
-	def on_mob_walk
-		inactivate
-		false
-	end
-end	
-
-class CompShootRight < Component
-	def initialize(game,x,y)
-		super(game,x,y,"shootright")
-		@color = Gosu::Color::RED
-	end 
-	
-	def on_player_walk()
-		inactivate
-		@game.add_component(CompShootRightAnimation.new(@game, x + 1, y))
-		true
-	end
-end	
-
-class CompShootLeft < Component
-	def initialize(game,x,y)
-		super(game,x,y,"shootright")
-		@color = Gosu::Color::RED
-	end 
-	
-	def on_player_walk()
-		inactivate
-		@game.add_component(CompShootLeftAnimation.new(@game, x - 1, y))
-		true
-	end
-end	
-
-class CompShootRightAnimation < Component
-	ARROW_TIME = 0.03
-	def initialize(game,x,y)
-		super(game,x,y,"shootright",:anim)
-		@color = Gosu::Color::RED	
-		@duration = ARROW_TIME
-		@dx = 1
-	end 
-	
-	def update(dx)
-		@duration -= dx
-		if @duration < 0.0
-			if (c = @game.component_at(@x+@dx,@y)) then
-				if c.on_arrow_hit() then
-					inactivate
-					return
-				end
-			else
-				@x = @x + @dx
-			end
-			@duration += ARROW_TIME
+		if (rand(15) == 0)
+			super(game,x,y,"question")	
+			@color = Gosu::Color::WHITE
+		else
+			super(game,x,y,"quake")
+			@color = Gosu::Color::YELLOW
 		end
 	end
 	
-	def blocking_animation?
+	def can_player_walk?
 		true
+	end
+	
+	def visible?
+		false
+	end
+	
+	def on_player_walk
+		inactivate
+		@game.flash("Oh no, you set off an Earthquake trap!")
+		
+		true
+	end
+	
+	def on_player_walk_after
+		@game.place_multiple(50, CompRock)
 	end
 end	
 
-class CompShootLeftAnimation < CompShootRightAnimation	
+	
+
+# should we be stopping to reveal the door first?
+class CompDoorInvis < CompDoor
 	def initialize(game,x,y)
 		super
-		@name = "shootleft"	
-		@dx = -1
+		@visible = false
+	end
+	
+	def visible?
+		@visible
+	end
+	
+	def can_player_walk?
+		@visible and super
+	end
+	
+	def on_player_walk_fail
+		@visible = true
+	end
+end
+
+class CompShoot < Component
+	def initialize(game,x,y,dir)
+		if dir == :left
+			@dx = -1
+			name = "shootleft"
+		elsif dir == :right
+			@dx = 1
+			name = "shootright"
+		else
+			raise "bad direction #{dir}"
+		end
+		super(game,x,y,name)
+		@color = Gosu::Color::RED		
 	end 
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk()
+		super
+		@game.play("arrow_loose")
+		anim = CompArrowAnimation.new(@game, x + @dx, y, @dx)
+		@game.add_component(anim)
+		@game.blocking_effects[:arrow] = Effect.new(9999)
+		@game.blocking_effects[:arrow].link_component = anim
+		@game.blocking_effects[:arrow].activate
+		true
+	end
 end	
 
 class CompFreezeSpell < Component
@@ -1069,9 +1600,15 @@ class CompFreezeSpell < Component
 		@color = Gosu::Color::CYAN
 	end
 	
+	def can_player_walk?
+		true
+	end
+	
 	def on_player_walk
 		@game.flash("Monsters have been frozen in place")
-		inactivate
+		@game.play("spell")
+		@game.player.add_score(1)
+		inactivate		
 		@game.effects[:freeze_monster].activate
 		true
 	end
@@ -1079,8 +1616,17 @@ end
 
 class CompSlowSpell < Component
 	def initialize(game,x,y)
-		super(game,x,y,"slow")
-		@color = Gosu::Color::CYAN
+		if (rand(35) == 0)
+			super(game,x,y,"question")	
+			@color = Gosu::Color::WHITE
+		else
+			super(game,x,y,"slow")	
+			@color = Gosu::Color::CYAN
+		end
+	end
+	
+	def can_player_walk?
+		true
 	end
 	
 	def on_player_walk
@@ -1093,13 +1639,24 @@ end
 
 class CompFastSpell < Component
 	def initialize(game,x,y)
-		super(game,x,y,"fast")
-		@color = Gosu::Color::CYAN
+	
+		if (rand(10) == 0)
+			super(game,x,y,"question")	
+			@color = Gosu::Color::WHITE
+		else	
+			super(game,x,y,"fast")
+			@color = Gosu::Color::CYAN
+		end
+	end
+	
+	def can_player_walk?
+		true
 	end
 	
 	def on_player_walk
-		@game.flash("Monsters begin to move more quickly")
-		inactivate
+		super
+		@game.add_score(2)
+		@game.flash("Monsters begin to move more quickly")		
 		@game.effects[:speed_monster].activate
 		true
 	end
@@ -1107,12 +1664,22 @@ end
 
 class CompRing < Component
 	def initialize(game,x,y)
-		super(game,x,y,"ring")
-		@color = Gosu::Color.argb(0xff_FB00F2)
+		if (rand(10) == 0)
+		
+			super(game,x,y,"question")	
+			@color = Gosu::Color::WHITE
+		else
+			super(game,x,y,"ring")
+			@color = Gosu::Color.argb(0xff_FB00F2)
+		end
 	end 
 	
+	def can_player_walk?
+		true
+	end
+	
 	def on_player_walk
-		inactivate
+		super
 		@game.player.add_rings(1)
 		@game.player.add_score(15)
 		true
@@ -1127,6 +1694,10 @@ class CompRope < Component
 		# or do we allow players to step on ropes...
 	end
 	
+	def can_player_walk?
+		true
+	end
+	
 	def on_player_walk
 		inactivate
 		true
@@ -1135,26 +1706,249 @@ class CompRope < Component
 	def on_player_walk_after
 		@game.player.rope_under = true
 	end
+	
+	def support_against_gravity?
+		true
+	end
 end
 
 class CompDropRope < Component
-	def initialize(game,x,y)
-		super(game,x,y,"rope")
+	attr_reader :code
+	def initialize(game,x,y,code)
+		super(game,x,y,"drop_rope")
+		@code = code
 		@color = Gosu::Color::YELLOW
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk			
+		inactivate
+		
+		true
+	end
+	
+	def on_player_walk_after
+		@pair = @game.components.select do |c| c.class == CompDropRope and c.code == @code and c.active and c != self end.first		
+		raise "unable to find pair" unless @pair
+		@pair.drop
+	end
+	
+	def drop
+		inactivate
+		x = @x
+		y = @y + 1 # look ahead because we don't want to add a rope at the bottom
+		while true
+			c = @game.component_at(x,y)			
+			break if c and c.stops_rope_drop?
+			c.inactivate if c
+			@game.add_component(CompRope.new(@game,x,y - 1))
+			y = y + 1
+		end		
 	end
 end
 
-class CompLetter < Component
-	def initialize(game,x,y, letter)
-		super(game,x,y,letter)
-		@color = Gosu::Color::WHITE # font is red
+class CompLava < Component
+	def initialize(game,x,y,rate=1.0)
+		super(game,x,y,"lava")
+		@color = Gosu::Color::RED
+		@rate = 1.0 #rate		
+		@game.effects[self] = Effect.new(rate)
+		@game.effects[self].activate
 	end
 	
-	def can_mob_walk?
+	def update(dt)				
+		return unless @active
+		if not @game.effects[self].active?
+			cont = spawn_lava
+			@game.effects[self].activate if cont
+		end		
+	end
+	
+	def spawn_lava
+		puts "spawn"
+		potential = false
+		KrozGame::DIRS.shuffle.each do |d|
+			c = @game.component_at(@x + d.first, @y + d.last)
+			potential = true if [CompTriggerWallBlock].include? c.class
+			next if c and not c.can_lava_spread? # what can lava overwrite?
+			c.on_lava_spread if c
+			# @game.add_component(CompLava.new(@game,@x + d.first,@y + d.last,@rate))
+			return true
+		end		
+		return potential
+	end
+	
+	def can_player_walk?
+		true
+	end
+	
+	def on_bomb
+		# inactivate
+	end
+	
+	def on_whip
+		# inactivate
+	end
+	
+	def on_player_walk
+		inactivate
+		@game.effects[self].clear
+		@game.effects.delete(self)
+		@game.player.add_score(25)
+		@game.player.add_gems(-10)
+		true
+	end
+end
+
+# monster trap, spawn a bunch of slow monsters
+class CompTrapMonsterCreate < Component
+	def initialize(game,x,y,visible)
+		super(game,x,y,"trap_monster_create")
+		@visible = visible
+	end
+	
+	def visible?
+		@visible
+	end
+	
+		def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		inactivate
+		
+
+		
+		true
+	end
+	
+	def on_player_walk_after
+		# if sideways, just lose 3 gems instead....
+		
+		@game.player.add_score(@game.mission * 2)	
+		
+		if @game.effects[:gravity]
+			if @game.player.gems >= 13
+				@game.flash(["3 gems float away","3 gems disolve before your eyes"].sample(1))
+				@game.player.add_gems(-3)
+			else
+				@game.flash("you find nothing here")
+			end
+		else		
+			@game.flash("you set off a create monster trap")
+			
+			@game.place_multiple(120, CompMob1)	
+		end
+	end
+end
+
+
+
+class CompSpellShowGems < Component
+	def initialize(game,x,y)
+		super(game,x,y,"trigger")
+	end
+	
+	def visible?
 		false
 	end
 	
-	def can_player_walk?()
+	def can_player_walk?
+		true
+	end
+	
+	def on_player_walk
+		inactivate
+
+		true
+	end
+	
+	def on_player_walk_after
+		
+		@game.place_multiple(120, CompGem, true)
+		@game.play("pouch")		
+		@game.flash("Yah Hoo! You discovered a Reveal Gems Scroll!")
+	end
+end
+
+class CompMovingBlockTrap < Component
+	def initialize(game,x,y)
+		super(game,x,y,"")
+	end 
+	
+	def visible?
 		false
+	end
+		
+	def on_player_walk
+		@game.components.select do |c| c.class == CompMovingBlockTrap end.each do |c|
+			c.inactivate
+		end
+		@game.components.select do |c| c.class == CompMovingBlock end.each do |c|
+			c.wake_up
+		end		
+	end
+end
+
+#mblock #magic block
+class CompMovingBlock < CompWeakWall
+	def initialize(game,x,y,visible)
+		super(game,x,y)
+		@visible = visible
+		@game.effects[self] = Effect.new(1.0) do |e|
+			move_block
+			e.activate
+		end
+	end
+	
+	def wake_up	
+		@visible = true #?
+		@game.effects[self].activate
+	end
+	
+	def visible?
+		@visible
+	end
+	
+	def on_whip
+		if (rand(7)) < @game.player.whip_power
+			inactivate		
+			@game.player.add_score(1)
+		end
+	end
+	
+	def move_block
+		px, py = @game.player.x, @game.player.y
+		tx, ty = @x, @y
+		
+		if px > @x and py > @y
+			tx, ty = @x + 1, @y + 1  # up-right
+		elsif px > @x and py < @y
+			tx, ty = @x + 1, @y - 1  # down-right
+		elsif px < @x and py > @y
+			tx, ty = @x - 1, @y + 1  # up-left
+		elsif px < @x and py < @y
+			tx, ty = @x - 1, @y - 1  # down-left
+		elsif px > @x
+			tx = @x + 1
+		elsif px < @x
+			tx = @x - 1
+		elsif py > @y
+			ty = @y + 1
+		elsif py < @y
+			ty = @y - 1
+		end 
+	
+		if @x != tx or @y != ty
+			c = @game.component_at(tx, ty)
+			if not c			
+				# inactivate if c and c.on_mob_walk()
+				move(tx,ty) if @active				
+			end
+		end		
 	end
 end

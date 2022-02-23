@@ -26,16 +26,12 @@ Goals:
 
 Todo:
 	switch actions to command paradigm
-DONE	simplify component_at... should be a single slot
 	compare enemy behavior to original
 	build up level designer
-	components are a mess? event system?
-	
-	clean up player action.  needing to recheck right before acting sucks	
+	component cleanup.  more sensible defaults?  modules?
+	event system??	
+	first-time hints system
 
-    "gems give you points and health"
-    "press any key to begin the level"
-	"stairs take you to the next lower level"
 	
 	more cool animations, weak walls crumbling, torches, etc
 	avoid holding a button?  'w' can use multiple whips...
@@ -47,6 +43,24 @@ static animation of monsters
 invis things,  hidden things..  
 all the tiles
 
+difficulties
+	ran into minor issues with character encodings but notepad++ 'just worked'.  had to change
+	approaches when automatically writing out the random levels
+
+
+lessons learned
+  longer than expected, more features.
+  look more at original source.  started reimplementing things then ended up adjusting to be closer to real rules.
+  may try more of a port approach
+  try a more systems approach?  raise events and let the 'scorer' watch for them so that all score stuff is in one place etc.
+  overall things went smoothly, adding a new feature was never too jarring/overwhelming.
+  
+
+ideas:
+	add high score
+	add the other 6 episodes.  how different are features?
+	custom map editor, sharing maps
+	
 
 level 6 hide weak walls
 level 8 sideways -   Fast:=#234;{or #1}
@@ -73,5 +87,69 @@ what else can bombs destroy?
 	def on_bomb
 		inactivate
 	end
+
+random color of borders,gems
  
- 
+DONE review score
+DONE review whipping things
+review flashes
+review thigns affected by difficulty...
+
+play through...
+
+DONE on level 6 can whip the things at hte bottom to reveal them as a altar thing
+can whip away krozes - review what can be destroyed by whips?
+on lv 8, when stepping on drop rope, it disappears under you and you fall.
+monster generator puts them anywhere?  white then red?
+DONE you can't teleport onto stops
+monster animations - bobbing
+a hide trap
+new kind of surround trap..forgot what it was...
+
+pit falling animation...
+make droprop a blocking anim?
+adjust lava gen
+do tree gen
+spell bars
+
+which wall trigger traps can be whipped?
+
+main menu
+death
+high score
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
