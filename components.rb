@@ -487,7 +487,7 @@ class CompTeleport < CompTypePowerup
 	
 	def on_player_walk
 		super
-		@game.add_score(1)
+		@game.player.add_score(1)
 		@game.player.add_teleports(1)
 		true
 	end
@@ -1044,6 +1044,10 @@ class CompMob < Component
 	def on_arrow_hit()
 		inactivate
 		false
+	end
+	
+	def can_push_rock?
+		true
 	end
 	
 end

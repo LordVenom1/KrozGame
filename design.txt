@@ -99,23 +99,31 @@ monster generator puts them anywhere?  white then red?
 DONE you can't teleport onto stops
 monster animations - bobbing
 
-pit falling animation...
+DONEpit falling animation...
+
 make droprop a blocking anim?
 adjust lava gen
 do tree gen
+
 spell bars
 
 which wall trigger traps can be whipped?
 
-main menu
-check death state
+DONE main menu
+DONE check death state
 high score
+difficulty menu?
 
-rocks should be able to smush enemies
+
+"about"
+more music.  options to turn on/off music
+
+DONE rocks should be able to smush enemies
 cleanup saves.  make a true save/load system might be best?  get rid of restarting?  or autosave?
+cleanup pausing/press any key
 
 
-
+- and + to disable / reset hints
 
 
 
