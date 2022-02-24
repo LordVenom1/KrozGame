@@ -3,6 +3,10 @@
 class SpriteManager
 	@images = {}
 	
+	def self.load_background(name, filename)
+		@images[name] = Gosu::Image.new("media/#{filename}", tileable: false)
+	end
+	
 	def self.load_sprite_from_sheet(name, parent_filename, x, y, width, height)
 		left = x * width
 		top = y * height
@@ -18,6 +22,9 @@ class SpriteManager
 	
 end
 
+SpriteManager.load_background("title","title.png")
+
+
 # SpriteManager.load_sprite_from_sheet("floor1", "terrain_sprites.png", 0, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("floor1", "custom.png", 2, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("wall", "terrain_sprites.png", 3, 0, 16, 24)
@@ -31,6 +38,7 @@ SpriteManager.load_sprite_from_sheet("question", "feature_sprites.png", 1, 0, 16
 SpriteManager.load_sprite_from_sheet("pit", "item_sprites.png", 31, 1, 16, 24)
 SpriteManager.load_sprite_from_sheet("statue", "feature_sprites.png", 18, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("tome", "item_sprites.png", 4, 0, 16, 24)
+SpriteManager.load_sprite_from_sheet("flatline", "custom.png", 3, 0, 16, 24)
 		
 SpriteManager.load_sprite_from_sheet("trap_monster_create", "creature_sprites.png", 17, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("altar", "creature_sprites.png", 17, 0, 16, 24)

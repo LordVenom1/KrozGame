@@ -220,7 +220,7 @@ require './animations.rb'
 class CompPlayer < Component
 
 	attr_reader :score, :gems, :whips, :teleports, :keys, :rings
-	attr_reader :state
+	attr_reader :status
 
 	def initialize(game,x,y)
 		super(game,x,y,"player")
@@ -234,17 +234,21 @@ class CompPlayer < Component
 		@teleports = 0
 		@keys = 0
 		@rings = 0
-		@state = :alive
+		@status = :alive
 		
 		# for debugging
-		@gems = 999
-		@whips = 999
-		@teleports = 999
-		@keys = 20
+		# @gems = 999
+		# @whips = 999
+		# @teleports = 999
+		# @keys = 20
 		
 		@rope = false
 		
 		@letters = Set.new()
+	end
+	
+	def kill
+		@status = :dead
 	end
 	
 	def difficulty_mod
@@ -306,7 +310,13 @@ class CompPlayer < Component
 	def add_gems(cnt)
 		@gems += cnt
 		@score = cnt * 10 if cnt > 0
-		raise 'game over' if @gems < 0
+		if @gems < 0
+			@status = :dead 
+			@gems = 0
+			@game.flash("You have died")
+		end
+			# play death		
+		
 	end
 	
 	def add_whips(cnt)
@@ -403,17 +413,21 @@ class CompGem < CompTypePowerup
 	def initialize(game,x,y,visible = true)
 		super(game,x,y,"gem")
 		@visible = visible
-		@color = Gosu::Color.argb(0xff_FB00F2)
 	end 
+		
+	def color
+		@game.gem_color || Gosu::Color.argb(0xff_FB00F2)
+	end
 	
 	def visible?
 		@visible
 	end
 	
 	def on_player_walk()	
-		super	
+		super		
 		@game.player.add_gems(1)
 		@game.player.add_score(1)
+		@game.give_hint(:gem)
 		@game.play("gem")
 		true
 	end
@@ -588,7 +602,11 @@ end
 class CompBorder < Component
 	def initialize(game,x,y)
 		super(game,x,y,"border")
-		@color = Gosu::Color::YELLOW
+		# @color = Gosu::Color::YELLOW
+	end
+	
+	def color
+		@game.border_color || Gosu::Color::YELLOW
 	end
 		
 	def can_player_walk?()
@@ -842,7 +860,25 @@ class CompPit < Component
 	
 	def on_player_walk
 		# fall to death!
-		flash "you fall to your death :("
+		super
+		
+		@game.clear_all			
+		
+		# build a quick 'level'
+		
+		(0..24).each do |y|
+			@game.add_component(CompWall.new(@game,25,y))
+			@game.add_component(CompWall.new(@game,40,y))
+		end
+		
+		
+		anim = CompFallingAnimation.new(@game,32,0)
+		@game.add_component(anim)
+		@game.blocking_effects[:falling] = Effect.new(9999)
+		@game.blocking_effects[:falling].link_component = anim
+		@game.blocking_effects[:falling].activate
+		
+		false
 	end
 	
 	def can_push_rock?
@@ -1491,6 +1527,10 @@ class CompBomb < Component
 		end
 	end
 	
+	def can_player_walk?
+		true
+	end
+	
 	def on_player_walk
 		inactivate
 		explode
@@ -1768,7 +1808,7 @@ class CompLava < Component
 	end
 	
 	def spawn_lava
-		puts "spawn"
+		# puts "spawn"
 		potential = false
 		KrozGame::DIRS.shuffle.each do |d|
 			c = @game.component_at(@x + d.first, @y + d.last)

@@ -25,23 +25,19 @@ Goals:
 * publish on itch.io
 
 Todo:
+	fix lava
 	switch actions to command paradigm
 	compare enemy behavior to original
 	build up level designer
 	component cleanup.  more sensible defaults?  modules?
 	event system??	
-	first-time hints system
-
-	
+	populate remaining first-time hints system
 	more cool animations, weak walls crumbling, torches, etc
-	avoid holding a button?  'w' can use multiple whips...
-	
-move level load/generator to separate file
-flesh out render state more?
-can monsters hit invis weak walls?  lv 4
-static animation of monsters
-invis things,  hidden things..  
-all the tiles
+	flesh out render state more?
+	events
+	move level load/generator to separate file
+	can monsters hit invis weak walls?  lv 4
+	static animation of monsters
 
 difficulties
 	ran into minor issues with character encodings but notepad++ 'just worked'.  had to change
@@ -54,7 +50,7 @@ lessons learned
   may try more of a port approach
   try a more systems approach?  raise events and let the 'scorer' watch for them so that all score stuff is in one place etc.
   overall things went smoothly, adding a new feature was never too jarring/overwhelming.
-  
+  being strict about things on the board seemed to help, but an extra status to be off the board might simplify code in a few places
 
 ideas:
 	add high score
@@ -88,8 +84,7 @@ what else can bombs destroy?
 		inactivate
 	end
 
-random color of borders,gems
- 
+DONE random color of borders,gems
 DONE review score
 DONE review whipping things
 review flashes
@@ -103,8 +98,6 @@ on lv 8, when stepping on drop rope, it disappears under you and you fall.
 monster generator puts them anywhere?  white then red?
 DONE you can't teleport onto stops
 monster animations - bobbing
-a hide trap
-new kind of surround trap..forgot what it was...
 
 pit falling animation...
 make droprop a blocking anim?
@@ -115,9 +108,11 @@ spell bars
 which wall trigger traps can be whipped?
 
 main menu
-death
+check death state
 high score
 
+rocks should be able to smush enemies
+cleanup saves.  make a true save/load system might be best?  get rid of restarting?  or autosave?
 
 
 

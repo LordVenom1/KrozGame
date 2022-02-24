@@ -1,0 +1,13 @@
+---
+:version: 1
+:episode: :kingdom
+:mission: 1
+:score: 0
+:gems: 999
+:whips: 999
+:rings: 0
+:teleports: 999
+:keys: 20
+:difficulty: 8
+:hints: !ruby/object:Set
+  hash: {}

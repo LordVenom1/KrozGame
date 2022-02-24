@@ -49,15 +49,24 @@ end
 
 
 class KrozGame
+	HINTS = {
+		gem: "Gems give you both points and strength.",
+		slow: 'You activated a Slow Creature spell.',
+		ewall: 'An Electrified Wall blocks your way.'
+	}
+	
 	attr_reader :board_x, :board_y, :player
 	attr_reader :episode, :mission
 	attr_reader :effects, :blocking_effects
 	attr_reader :paused
 	attr_reader :render_state
+	attr_reader :gem_color, :border_color
 
 	DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]]
 	PLAYER_TICK = 0.1
-	GAME_TICK = 0.2
+	GAME_TICK = 0.3
+	
+	
 	
 	def random_board_location
 		# 2 smaller to avoid borders
@@ -78,6 +87,9 @@ class KrozGame
 		@player = nil # level loader will create the player when there's somewhere to place it
 		@player_action = :none
 		
+		@render_state = RenderState.new()
+		
+		
 		# game effects 
 		@effects = {
 			slow_monster: Effect.new(10.0),
@@ -87,22 +99,24 @@ class KrozGame
 		}
 		
 		@blocking_effects = {
-			flash: Effect.new(1.5) do |e|
-				@render_state.clear_flash
-				e.activate if @render_state.current_flash
-			end
+			flash: Effect.new(9999)
 		}
+		
+
+		@hints_found = Set.new()
 		
 		load_level()		
 
-		
-		
 		@next_player_update = PLAYER_TICK
 		@next_game_update = GAME_TICK
 		
-		@render_state = RenderState.new()
-		
-		flash("welcome")
+	end
+	
+	def give_hint(key)
+		return if @hints_found.include? key
+		message = KrozGame::HINTS[key]
+		flash(message) if message
+		@hints_found << key
 	end
 	
 	# yikes
@@ -174,15 +188,81 @@ class KrozGame
 			pause
 		elsif action == :unpause
 			unpause
-		elsif action == :set_location
+		elsif action == :next_level and @player.status == :alive
+			next_level
+		elsif action == :prev_level and @player.status == :alive		
+			prev_level # debugging only
+		elsif action == :save_game and @player.status == :alive
+			save_game
+		elsif action == :restore_game
+			restore_game
+		elsif action == :restart_level						
+			game_data = @game_data_at_start
+			load_level
+		elsif action == :set_location #debugging only 
 			c = component_at(*args)
 			@player.set_location(*args) unless (c and not c.can_player_walk?) or (args.first == @player.x and args.last == @player.y)
-		else			
-			@next_player_action = action
+		elsif @player.status == :alive
+			@next_player_action = action 
 		end
 	end
 	
 	def shutdown
+	end
+	
+	def game_data
+		{
+			version: 1,
+			episode: @episode, 
+			mission: @mission, 
+			score: @player.score, 
+			gems: @player.gems, 
+			whips: @player.whips, 
+			rings: @player.rings, 
+			teleports: @player.teleports, 
+			keys: @player.keys, 
+			difficulty: @player.difficulty_mod, 
+			hints: @hints_found
+		}.to_yaml
+	end
+	
+	def game_data=(vals)
+		if vals[:version] == 1
+			@episode = data[:episode]
+			@mission = data[:mission]
+			@score = data[:score]
+			@gems = data[:gems]
+			@whips = data[:whips]
+			@rings = data[:rings]
+			@teleports = data[:teleports]
+			@keys = data[:keys]
+			@hints_found = data[:hints]
+		else
+			raise "unsupported version: #{vals[:version]}"
+		end
+	end
+	
+	def save_game
+		# kroz just stores what you had at the beginning of the level...		
+		File.write("save.yml", @game_data_at_start)
+		flash("Game saved!  Press any key to continue playing.")
+	end
+	
+	def restore_game
+		# reload level...
+		
+		if not File.exists?("save.yml")
+			flash("No save file found")
+			return
+		end
+		
+		data = YAML::load_file("save.yml")
+		
+		@game_data_at_start = data # now when loading this level 
+		game_data = data
+		
+		
+		load_level
 	end
 	
 	# main game engine.. update all entities		
@@ -197,7 +277,7 @@ class KrozGame
 			return
 		end
 		
-		return if @paused		
+		return if @paused or @player.status == :dead	
 		
 		@effects.each do |name,effect|
 			# puts effect if effect.class != Effect
@@ -296,13 +376,6 @@ class KrozGame
 				play("spell")
 				
 			end
-		elsif action == :next_level
-			next_level
-		elsif action == :prev_level		
-			@mission -= 1
-			@mission = 1 if @mission <= 0
-			
-			load_level()
 		end
 		
 		cleanup_components() # remove inactive components 
@@ -421,10 +494,14 @@ class KrozGame
 		flash("Kroz protect.  Tomorrow will tell...")
 	end
 	
+	def randomize_colors
+		@gem_color = [Gosu::Color::RED,Gosu::Color::BLUE,Gosu::Color::GREEN,Gosu::Color::WHITE].sample
+		@border_color = [Gosu::Color::RED,Gosu::Color::BLUE,Gosu::Color::GREEN,Gosu::Color::WHITE].sample
+	end
+	
 	def load_level()
-		unload_level
-		
-		@paused = true
+		unload_level		
+		flash("Press any key to begin this level")
 		
 		level_data = YAML::load_file("levels/#{@episode.to_s}_#{@mission}.yml")
 		generate_random_level(level_data) if level_data[:mode] == :random
@@ -433,6 +510,8 @@ class KrozGame
 		
 		# puts level_data[:data]
 		# exit
+
+		randomize_colors
 
 		if level_data[:flags][:gravity]
 		# sideways level
@@ -465,7 +544,7 @@ class KrozGame
 				glyph = level_data[:data][(x-1) + (y-1) * (@board_x-2)]
 				case glyph
 					when "]" # {35} Create
-						add_component(CompTrapMonsterCreate.new(self,x,y,not(level_data[:hide_create])))
+						add_component(CompTrapMonsterCreate.new(self,x,y,not(level_data[:flags][:hide_create])))
 					when "E" # {28} Quake
 						add_component(CompQuakeTrap.new(self,x,y))
 					when "R" # {17} River
@@ -543,7 +622,7 @@ class KrozGame
 					# trigger trap removes corresponding trigger wall blocks
 					# ñ>4, ò>5, ó>6, H>O, ô>7, õ>8, ö>9
 					when "ñ" # {58} OSpell1
-						add_component(CompTriggerTrap.new(self,x,y,4,nil, not(level_data[:hide_open_wall])))
+						add_component(CompTriggerTrap.new(self,x,y,4,nil, not(level_data[:flags][:hide_open_wall])))
 					when "ò" # {59} OSpell2
 						add_component(CompTriggerTrap.new(self,x,y,5,nil))
 					when "ó" # {60} OSpell3
@@ -575,7 +654,7 @@ class KrozGame
 					when "W" # {5} Whip pickup
 						add_component(CompWhip.new(self, x, y))
 					when "+" # {9} gem
-						add_component(CompGem.new(self, x, y, not(level_data[:hide_gems])))
+						add_component(CompGem.new(self, x, y, not(level_data[:flags][:hide_gems])))
 					when "." # {16} teleport trap
 						add_component(CompTrapTeleport.new(self, x, y))
 					when ">" # {46} Statue - passively does damage
@@ -601,7 +680,7 @@ class KrozGame
 					when "I" #{10} invisible curse
 						add_component(CompInvisibility.new(self,x,y))
 					when "L" #{6} stairs
-						add_component(CompExit.new(self, x, y, level_data[:hide_exit]))
+						add_component(CompExit.new(self, x, y, not(level_data[:flags][:hide_exit])))
 					when "D" #{13} door - must be unlocked with a key to progress
 						add_component(CompDoor.new(self, x, y))
 					when "`" #{31} IDoor - invisible door - bump to reveal
@@ -631,7 +710,7 @@ class KrozGame
 					when "@" # {33} what glyph should this actually be??
 						add_component(CompMovingBlockTrap.new(self,x,y))
 					when "M" # {38} magic blocks - can start alive or come alive after hitting movingblocktrap
-						add_component(CompMovingBlock.new(self,x,y, not(level_data[:hide_level_mblock])))
+						add_component(CompMovingBlock.new(self,x,y, not(level_data[:flags][:hide_level_mblock])))
 					when "~" # {66} ewall - electrified wall
 						add_component(CompEWall.new(self,x,y))
 					when "a".."z" # literal letters, otherwise walls
@@ -648,6 +727,13 @@ class KrozGame
 				end				
 			end
 		end
+		
+		@game_data_at_start = game_data
+	end
+	
+	def clear_all
+		@components = []
+		@board.select! do nil end
 	end
 	
 	def unload_level
@@ -662,8 +748,13 @@ class KrozGame
 	
 	def next_level		
 		@mission += 1
-		@mission = 25 if @mission > 25
-		
+		@mission = 25 if @mission > 25		
+		load_level()
+	end
+	
+	def prev_level
+		@mission -= 1
+		@mission = 1 if @mission <= 0			
 		load_level()
 	end
 	
