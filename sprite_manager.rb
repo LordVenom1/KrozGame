@@ -1,5 +1,3 @@
-# needs awareness of gosu
-
 class SpriteManager
 	@images = {}
 	
@@ -14,8 +12,7 @@ class SpriteManager
 		@images[name] = p.subimage(left, top, width, height)
 	end
 	
-	def self.image(name)
-		#@images[name] = Gosu::Image.new("media/#{name}.png", tileable: true) unless @images[name]
+	def self.image(name)		
 		raise "sprite not found: #{name}" unless @images.has_key?(name)
 		@images[name]
 	end
@@ -24,10 +21,8 @@ end
 
 SpriteManager.load_background("title","title.png")
 SpriteManager.load_background("title_new","title_new.png")
+SpriteManager.load_background("floor","floor.png")
 
-
-# SpriteManager.load_sprite_from_sheet("floor1", "terrain_sprites.png", 0, 0, 16, 24)
-SpriteManager.load_sprite_from_sheet("floor1", "custom.png", 2, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("wall", "terrain_sprites.png", 3, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("border", "terrain_sprites.png", 3, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("water", "terrain_sprites.png", 2, 0, 16, 24)
@@ -51,14 +46,12 @@ SpriteManager.load_sprite_from_sheet("arrow", "custom.png", 1, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("freeze", "item_sprites.png", 4, 1 , 16, 24)
 SpriteManager.load_sprite_from_sheet("fast", "item_sprites.png", 7, 0 , 16, 24)
 SpriteManager.load_sprite_from_sheet("slow", "item_sprites.png", 6, 0 , 16, 24)
-# 6,7
 
 SpriteManager.load_sprite_from_sheet("gem", "item_sprites.png", 3, 1 , 16, 24)
 SpriteManager.load_sprite_from_sheet("whip", "item_sprites.png", 15, 1 , 16, 24)
 SpriteManager.load_sprite_from_sheet("ring", "item_sprites.png", 31, 0 , 16, 24)
 SpriteManager.load_sprite_from_sheet("key", "item_sprites.png", 3, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("chest", "item_sprites.png", 31, 2, 16, 24)
-# SpriteManager.load_sprite_from_sheet("door", "sys_sprites.png", 5, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("door", "custom.png", 0, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("exit", "feature_sprites.png", 4, 0, 16, 24)
 SpriteManager.load_sprite_from_sheet("teleport", "feature_sprites.png", 6, 0, 16, 24)

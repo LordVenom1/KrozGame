@@ -26,7 +26,7 @@ Goals:
 
 Design notes:
 * Written in Ruby.  Graphic rendering and Audio are handled by [Gosu](https://www.libgosu.org/) library.  		
-* Levels are exactly taken from PASCAL source.  Specific pieces of game behavior were taken from the source to maintain accuracy.  Otherwise the game design and structure was written from scratch.
+* Levels are exactly taken from PASCAL source.  Specific pieces of game behavior were taken from the source to maintain accuracy.  Otherwise the game design and structure were written from scratch.
 
 Outcome:
 * The goals of the project were met and I am very happy with the results.  

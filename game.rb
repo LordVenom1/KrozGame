@@ -1,94 +1,72 @@
 require 'yaml'
-require './components.rb'
-require './renderer.rb'
-
-class Effect
-	def initialize(default_activation_duration, &on_finish_proc)
-		@default_activation_duration = default_activation_duration
-		@duration = 0.0
-		@on_finish = on_finish_proc	
-		#@on_update = nil
-		@component = nil
-	end
-	
-	def active?
-		@duration > 0.0
-	end
-	
-	def link_component=(c)
-		@component = c
-	end
-	
-	# def set_on_update_func(f)
-		# @on_update = f
-	# end
-	
-	def activate(dur = nil)		
-		# picking up multiple copies of a spell doesn't extend the timer
-		@duration = dur ? dur : @default_activation_duration
-	end
-	
-	def clear
-		@duration = 0.0
-	end
-	
-	def update(dt)
-		if active?		
-			@duration -= dt			
-			if @duration < 0.0
-				@duration = 0.0 
-				@on_finish.call(self) if @on_finish
-			end
-		end		
-	end	
-	
-	def update_component(dt)
-		@component.update(dt) if @component and @component.active
-	end
-end
-
+require_relative 'effect.rb'
+require_relative 'components.rb'
+require_relative 'renderer.rb'
 
 class KrozGame
 	HINTS = {
 		gem: "Gems give you both points and strength.",
-		slow: 'You activated a Slow Creature spell.',
-		ewall: 'An Electrified Wall blocks your way.'
+		slow: "You activated a Slow Creature spell.",
+		speed: "You activated a Speed Creature spell.",
+		freeze: "You have activated a Freeze Creature spell!",
+		zap: "A Creature Zap Spell!",
+		gem_reveal: "Yah Hoo! You discovered a Reveal Gems Scroll!",
+		tablet: "You found an Ancient Tablet of Wisdom...2,500 points!",
+		ewall: "You hit a Electrified Wall!  You lose one Gem.",
+		arrow: "You triggered a Magic Spear!",
+		stairs: "Stairs take you to the next lower level.",
+		invis: "Oh no, a temporary Blindness Potion!",
+		teleport: "You found a Teleport scroll.",
+		key: "Use Keys to unlock doors.",
+		door: "The Door opens!  (One of your Keys is used.)",
+		wall: "A Solid Wall blocks your way.",
+		water: "You cannot travel through Water.",
+		trap_tele: "You activated a Teleport trap!",
+		trap_quake: "Oh no, you set off an Earthquake trap!",
+		trap_mob: "A Creature Creation Trap!",
+		explode: "You triggered Exploding Walls!",
+		rock: "You pushed a big Boulder!",
+		generator: "You have discovered a Creature Generator!",
+		mwall: "A Moving Wall blocks your way.",
+		invis_weakwall: "An Invisible Crumbled Wall blocks your way.",
+		invis_door: "An Invisible Door blocks your way.",
+		invis_wall: "An Invisible Wall blocks your way.",
+		ring: "A Power Ring--your whip is now a little stronger!",
+		forest: "You cannot travel through forest terrain.",
+		tree: "A tree blocks your way.",
+		bomb: "You activated a Magic Bomb!",
+		lava: "Oooooooooooooooooooh!  Lava hurts!  (Lose 10 Gems.)",
+		pit: "Oh no, a Bottomless Pit!",
+		tunnel: "You passed through a secret Tunnel!",
+		nugget: "You found a Gold Nugget...500 points!"
 	}
 	
+	DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]]
+	PLAYER_TICK = 0.09
+	GAME_TICK = 0.42
+	GROWTH_TICK = 0.8	
+
 	attr_reader :board_x, :board_y, :player
 	attr_reader :episode, :mission
-	attr_reader :effects, :blocking_effects
+	attr_reader :effects, :blocking_effects, :components
 	attr_reader :paused
 	attr_reader :render_state
 	attr_reader :gem_color, :border_color
-
-	DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]]
-	PLAYER_TICK = 0.1
-	GAME_TICK = 0.3
-	GROWTH_TICK = 0.8
-	
-	
-	def random_board_location
-		# 2 smaller to avoid borders
-		return 1 + rand(@board_x - 2), 1 + rand(@board_y - 2)
-	end
-	
+		
 	def initialize()
 		@board_x = 64 + 2
 		@board_y = 23 + 2
-		
-		@floor = Array.new(@board_x * @board_y, TileFloor)
+				
 		@board = Array.new(@board_x * @board_y, nil)
 		@components = []		
 		
-		@episode = :kingdom # kingdom of kroz (remake?)
-		@mission = 1 # level 1
+		@episode = :kingdom
+		@mission = 1
 		
 		@player = nil # level loader will create the player when there's somewhere to place it
 		@player_action = :none
 		
 		@render_state = RenderState.new()
-		
 		
 		# game effects 
 		@effects = {
@@ -99,7 +77,7 @@ class KrozGame
 		}
 		
 		@blocking_effects = {
-			flash: Effect.new(9999)
+			flash: Effect.new(Float::MAX)
 		}
 		
 
@@ -118,11 +96,6 @@ class KrozGame
 		flash(message) if message
 		@hints_found << key
 	end
-	
-	# yikes
-	def effects
-		@effects
-	end
 		
 	def component_at(x,y)
 		c = @board[x + y * @board_x]		
@@ -130,10 +103,11 @@ class KrozGame
 		c
 	end
 	
-	def components
-		@components
+	def random_board_location
+		# 2 smaller to avoid borders
+		return 1 + rand(@board_x - 2), 1 + rand(@board_y - 2)
 	end
-	
+		
 	def place_on_board(comp,x,y)		
 		c = component_at(x,y)
 		raise "component already here #{comp} -  #{c}" if c and c.active
@@ -159,8 +133,7 @@ class KrozGame
 	def slow_monster
 		@effects[:slow_monster].activate
 		@next_game_update = GAME_TICK * 6
-	end
-			
+	end			
 	
 	def teleport_player
 		while true
@@ -197,7 +170,7 @@ class KrozGame
 		elsif action == :restore_game
 			restore_game
 		elsif action == :restart_level						
-			game_data = @game_data_at_start
+			set_game_data(@game_data_at_start)
 			load_level
 		elsif action == :set_location #debugging only 
 			c = component_at(*args)
@@ -212,9 +185,10 @@ class KrozGame
 	
 	def game_data
 		{
-			version: 1,
+			version: 1,			
 			episode: @episode, 
 			mission: @mission, 
+			status: @player.status,
 			score: @player.score, 
 			gems: @player.gems, 
 			whips: @player.whips, 
@@ -223,20 +197,15 @@ class KrozGame
 			keys: @player.keys, 
 			difficulty: @player.difficulty_mod, 
 			hints: @hints_found
-		}.to_yaml
+		}
 	end
 	
-	def game_data=(vals)
-		if vals[:version] == 1
+	def set_game_data(data)		
+		if data[:version] == 1			
 			@episode = data[:episode]
 			@mission = data[:mission]
-			@score = data[:score]
-			@gems = data[:gems]
-			@whips = data[:whips]
-			@rings = data[:rings]
-			@teleports = data[:teleports]
-			@keys = data[:keys]
-			@hints_found = data[:hints]
+			@hints_found = data[:hints]			
+			@player.set_game_data(data)		
 		else
 			raise "unsupported version: #{vals[:version]}"
 		end
@@ -257,10 +226,8 @@ class KrozGame
 		end
 		
 		data = YAML::load_file("save.yml")
-		
-		@game_data_at_start = data # now when loading this level 
-		game_data = data
-		
+				
+		set_game_data(data)
 		
 		load_level
 	end
@@ -328,15 +295,11 @@ class KrozGame
 	end
 	
 	def player_tick(action)	
-			
-
-
+	
 		x = @player.x
 		y = @player.y
 		
 		px,py = x,y
-		
-
 	
 		y = y - 1 if [:move_up, :move_upleft, :move_upright].include? action
 		y = y + 1 if [:move_down, :move_downleft, :move_downright].include? action
@@ -344,7 +307,6 @@ class KrozGame
 		x = x + 1 if [:move_right, :move_downright, :move_upright].include? action
 		
 		if [:move_up, :move_upleft, :move_upright].include?(action) and @effects[:gravity]			
-			
 			if not location_supported?(x,y)
 				x,y = @player.x, @player.y # reset movement
 			end
@@ -352,7 +314,6 @@ class KrozGame
 		
 		player_move(x,y)
 
-		
 		if action == :whip 
 			if @player.whips > 0
 				@player.add_whips(-1)				
@@ -362,7 +323,7 @@ class KrozGame
 				end	
 				anim = CompWhipAnimation.new(self, x, y)
 				add_component(anim)
-				@blocking_effects[:whip] = Effect.new(9999)
+				@blocking_effects[:whip] = Effect.new(Float::MAX)
 				@blocking_effects[:whip].link_component = (anim)
 				@blocking_effects[:whip].activate
 				# do the effect?				
@@ -396,10 +357,6 @@ class KrozGame
 	def visible_components
 		@components.select do |c| c.active and c.visible? end
 	end
-	
-	# def components
-		# @components
-	# end
 	
 	def play(name)
 		@render_state.play(name)
@@ -468,6 +425,7 @@ class KrozGame
 	
 	
 	def victory!
+		@player.victory!
 		flash("Oh no, something strange is happening!")
 		flash("You are magically transported from Kroz!")
 		flash("Your Gems are worth 100 points each...")
@@ -477,22 +435,7 @@ class KrozGame
 		flash("Your Teleport Scrolls are worth 100 points each...")
 		@player.add_score(@player.teleports * 100)
 		flash("Your Keys are worth 10,000 points each...")
-		@player.add_score(@player.keys * 100)
-		flash("Back at your hut")
-		flash("For years you've waited for such a wonderful archaeological")
-		flash("discovery. And now you possess one of the greatest finds ever!")
-		flash("The Magical Amulet will bring you great fame, and even more")
-		flash("so if you ever learn how to harness the Amulet's magical")
-		flash("abilities.  For now it must wait, though, for Kroz is a huge")
-		flash("place, and still mostly unexplored.")
-		flash("Even with the many dangers that await, you feel another")
-		flash("expedition is in order.  You must leave no puzzle unsolved, no")
-		flash("treasure unfound--to quit now would leave the job unfinished.")
-		flash("So you plan for a good night's rest, and think ahead to")
-		flash("tomorrow's new journey.  What does the mysterious kingdom of")
-		flash("Kroz have waiting for you, what type of new creatures will")
-		flash("try for your blood, and what kind of brilliant treasure does")
-		flash("Kroz protect.  Tomorrow will tell...")
+		@player.add_score(@player.keys * 100)		
 	end
 	
 	def randomize_colors
@@ -760,18 +703,16 @@ class KrozGame
 						add_component(CompLetter.new(self, x, y, glyph))
 					when "Ã" # literal exclamation mark
 						add_component(CompLetter.new(self, x, y, "!"))
-
 					#when "ƒ" # {81} not implemented - just says "ERROR!!!" in original
 					when " "
 					else
 						raise "unknown #{mission} #{glyph}"
-						add_component(CompUnknown.new(self, x, y))
-						#Tile.new("floor1", Gosu::Color.argb(0xff_202020))
+						# add_component(CompUnknown.new(self, x, y))						
 				end				
 			end
 		end
 		
-		@game_data_at_start = game_data
+		@game_data_at_start = game_data		
 	end
 	
 	def clear_all
@@ -782,8 +723,7 @@ class KrozGame
 	def unload_level
 		@render_state.clear_all
 		@blocking_effects.each do |name,e| e.clear end
-		@effects.each do |name,e| e.clear end
-		@floor = Array.new(@board_x * @board_y, TileFloor)
+		@effects.each do |name,e| e.clear end		
 		@board = Array.new(@board_x * @board_y, nil)
 		@components = []
 		@components << @player if @player
@@ -801,77 +741,4 @@ class KrozGame
 		@mission = 1 if @mission <= 0			
 		load_level()
 	end
-	
-	def floor_tile(x,y)	
-		return @floor[x + y * @board_x]
-	end
-	
-	def floor_tile=(val,x,y)
-		@floor[x + y * @board_x] = val
-	end
-
 end
-
-#level manager
-#tile
-
-# class Tile
-
-	# load tile specs from yaml		
-	# def initialize(sprite_name, color)
-	
-		# @sprite_name = sprite_name
-		# @color = color
-		# @name = name
-		# @file_symbol = "."
-		
-	# end
-	
-	# def sprite_name()
-		# @sprite_name
-	# end
-	
-	# def color()
-		# @color
-	# end
-	
-# end
-
-# class TileWall < Tile
-	# def initialize()
-		# super("wall", Gosu::Color::GRAY)
-	# end
-# end
-
-# class TileBorder
-	# def self.sprite_name
-		# "border"
-	# end
-	
-	# def self.color
-		# Gosu::Color::YELLOW
-	# end
-# end
-
-
-class TileFloor
-	def self.sprite_name
-		"floor1"
-	end
-	
-	def self.color
-		#Gosu::Color.argb(0xff_104010)
-		Gosu::Color::WHITE
-	end
-end
-
-class TileFloorWater
-	def self.sprite_name
-		"water"
-	end
-	
-	def self.color
-		Gosu::Color::BLUE
-	end
-end
-

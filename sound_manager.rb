@@ -1,5 +1,3 @@
-# https://opengameart.org/content/rpg-sound-pack
-
 class SoundManager
 	@sounds = {}	
 	

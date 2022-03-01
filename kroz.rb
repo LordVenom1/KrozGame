@@ -1,13 +1,3 @@
-##
-##
-##
-
-# https://v3x3d.itch.io/ - Bountiful Bits
-
-# Font sprites:
-#  https://opengameart.org/content/three-little-bitmap-fonts
-#  Buch and link back to http://blog-buch.rhcloud.com
-
 require 'gosu'
 
 require_relative 'game.rb'
@@ -22,10 +12,10 @@ module MainMenuLayer
 		end		
 	end
 	
-	def self.draw(gosu)
-		#gosu.font.draw_text_rel("PRESS ANY KEY TO BEGIN YOUR DESCENT INTO KROZ", gosu.width / 2.0, gosu.height * 0.40, 1.0, 0.5, 0.5, 1.5, 1.5)
+	def self.draw(gosu)		
 		img = SpriteManager.image(@@bg)
 		img.draw(0,0,0, gosu.width.to_f / img.width.to_f, gosu.height.to_f / img.height.to_f)
+		gosu.font.draw_text_rel("PRESS ANY KEY TO BEGIN YOUR DESCENT INTO KROZ", gosu.width / 2.0, gosu.height * 0.94, 1.0, 0.5, 0.5, 1.5, 1.5) if @@bg == "title_new"
 	end
 	
 	def self.button_down(gosu, id)
@@ -33,13 +23,46 @@ module MainMenuLayer
 		gosu.set_layer(GameLayer)		
 	end
 	
-	def self.button_up(id)
+	def self.reset	
+		@@duration = 0.40
+		@@bg = "title"		
+		self
+	end
+end
+
+module VictoryLayer
+	def self.update(gosu, dt)		
 	end
 	
-	def self.reset
-		@@duration = 0.40
-		@@bg = "title"
-		self
+	def self.draw(gosu)	
+		top_margin = gosu.height * 0.10
+		row = 0
+		row_height = 32
+						
+		gosu.font.draw_text_rel("Back at your hut", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("For years you've waited for such a wonderful archaeological", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("discovery. And now you possess one of the greatest finds ever!", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("The Magical Amulet will bring you great fame, and even more", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("so if you ever learn how to harness the Amulet's magical", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("abilities.  For now it must wait, though, for Kroz is a huge", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("place, and still mostly unexplored.", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("Even with the many dangers that await, you feel another", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("expedition is in order.  You must leave no puzzle unsolved, no", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("treasure unfound--to quit now would leave the job unfinished.", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("So you plan for a good night's rest, and think ahead to", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("tomorrow's new journey.  What does the mysterious kingdom of", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("Kroz have waiting for you, what type of new creatures will", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("try for your blood, and what kind of brilliant treasure does", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("Kroz protect.  Tomorrow will tell...", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		; row += row_height		
+		gosu.font.draw_text_rel("Final Score: #{gosu.game.player.score}", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height		
+	end
+	
+	def self.button_down(gosu, id)	
+		if id == Gosu::KB_ESCAPE
+			puts "Congratulations, you escaped the kingdom of kroz!  Final score: #{gosu.game.player.score}"
+			gosu.close 
+		end
 	end
 end
 
@@ -58,12 +81,12 @@ module MenuLayer
 		
 		gosu.font.draw_text_rel("ESC - Return to KROZ", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'Q' - Quit the game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("'X' - Restart this level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("'P' - Toggle Sound", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("'S' - Save your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("'R' - Restore your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("'[' - Return to previous level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
-		gosu.font.draw_text_rel("']' - Skip to the next level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("'R' - Restart this level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("'S' - Toggle Sound", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		# gosu.font.draw_text_rel("'S' - Save your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		# gosu.font.draw_text_rel("'R' - Restore your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		#gosu.font.draw_text_rel("'[' - Return to previous level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		#gosu.font.draw_text_rel("']' - Skip to the next level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 	end
 	
 	def self.button_down(gosu, id)
@@ -71,17 +94,17 @@ module MenuLayer
 			gosu.set_layer(GameLayer)			
 		elsif id == Gosu::KB_Q
 			gosu.close
-		elsif id == Gosu::KB_P
+		elsif id == Gosu::KB_S
 			gosu.options[:sound] = not(gosu.options[:sound])
-		elsif id == Gosu::KB_X
+		elsif id == Gosu::KB_R
 			gosu.game.handle_action(:restart_level)
 			gosu.set_layer(GameLayer)	
-		elsif id == Gosu::KB_S
-			gosu.game.handle_action(:save_game)
-			gosu.set_layer(GameLayer)			
-		elsif id == Gosu::KB_R
-			gosu.game.handle_action(:restore_game)
-			gosu.set_layer(GameLayer)
+		# elsif id == Gosu::KB_S
+			# gosu.game.handle_action(:save_game)
+			# gosu.set_layer(GameLayer)			
+		# elsif id == Gosu::KB_R
+			# gosu.game.handle_action(:restore_game)
+			# gosu.set_layer(GameLayer)
 		elsif id == Gosu::KB_RIGHT_BRACKET					
 			gosu.game.handle_action(:next_level)
 			gosu.set_layer(GameLayer)	
@@ -95,22 +118,19 @@ end
 module GameLayer
 	def self.update(gosu,dt)		
 		gosu.game.update(dt)
-
+		
 		gosu.game.render_state.get_sound_events.each do |name|
 			SoundManager.play(name) if gosu.options[:sound]
 		end
+		
+		if gosu.game.player.status == :victory
+			gosu.set_layer(VictoryLayer)
+		end		
 	end
 	
 	def self.draw(gosu)
-		# draw background
-		(0...gosu.game.board_x).each do |x|
-			(0...gosu.game.board_y).each do |y|
-				t = gosu.game.floor_tile(x,y)				
-				if t
-					SpriteManager.image(t.sprite_name).draw(x * GameWindow::TILE_WIDTH * GameWindow::TILE_SCALE, y * GameWindow::TILE_HEIGHT * GameWindow::TILE_SCALE, 0, GameWindow::TILE_SCALE, GameWindow::TILE_SCALE, t.color)
-				end
-			end
-		end
+		# draw background		
+		SpriteManager.image("floor").draw(0, 0, 0, GameWindow::TILE_SCALE, GameWindow::TILE_SCALE)
 		
 		# draw foreground
 		gosu.game.visible_components.each do |c|
@@ -121,8 +141,8 @@ module GameLayer
 			end
 		end
 		
-		# draw ui				
-		gosu.font.draw_text("Numpad to move   W)hip   T)eleport    ESC) Options", 30.0, gosu.height - 60, 1.0)
+		# draw ui		
+		gosu.font.draw_text("Numpad to move   W)hip   T)eleport    ESC) Options         Sound: #{gosu.options[:sound] ? "Enabled" : "Disabled"}", 30.0, gosu.height - 60, 1.0)
 		gosu.font.draw_text("Score: #{gosu.game.player.score.to_s.rjust(9," ")}  Level: #{gosu.game.mission.to_s.rjust(2, " ")}  Gems: #{gosu.game.player.gems.to_s.rjust(3, " ")}  Whips: #{(gosu.game.player.whips.to_s.rjust(3, " ") + (gosu.game.player.rings == 0 ? "  " : ("+" + gosu.game.player.rings.to_s)))}  Teleports: #{gosu.game.player.teleports.to_s.rjust(3, " ")}  Keys: #{gosu.game.player.keys.to_s.rjust(2, " ")}", 30.0, gosu.height - 30, 1.0)
 		
 		gosu.font.draw_text_rel("PAUSED", gosu.width / 2.0, gosu.height * 0.90, 1.0, 0.5, 0.5, 2.0, 2.0) if gosu.game.paused		
