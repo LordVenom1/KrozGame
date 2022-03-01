@@ -1,3 +1,4 @@
+=======
 # Kingdom of Kroz ruby remake
 
 This is a re-implementation of Kingdom of Kroz (the 1990 re-release), originally made by Scott Miller, who would go on to found Apogee Software.
@@ -94,4 +95,7 @@ Future ideas:
 Overall
 I'm very satisfied with how this project turned out, and "future ideas" aside I'm pretty happy with its current state.  I found the game genuinely fun to actually play through, and it held plenty of interesting and emergent surprises even though I had programmed the game myself.
 My overall design, while not taken to a logical conclusion in terms of object-oriented game design, was very satisfactory.  By the end it felt fun and natural to implement each new component with minimal need to revisit other systems, which is naturally the point.
+
+
+# KrozGame
 
