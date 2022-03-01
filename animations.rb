@@ -92,11 +92,6 @@ class CompFallingAnimation < Component
 				@game.flash("You fell into a pit and died.")
 				@loops = 0
 			end			
-		end
-		
-		
-		
-		
-	end
-	
+		end		
+	end	
 end

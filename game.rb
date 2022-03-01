@@ -65,7 +65,7 @@ class KrozGame
 	DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]]
 	PLAYER_TICK = 0.1
 	GAME_TICK = 0.3
-	
+	GROWTH_TICK = 0.8
 	
 	
 	def random_board_location
@@ -344,6 +344,7 @@ class KrozGame
 		x = x + 1 if [:move_right, :move_downright, :move_upright].include? action
 		
 		if [:move_up, :move_upleft, :move_upright].include?(action) and @effects[:gravity]			
+			
 			if not location_supported?(x,y)
 				x,y = @player.x, @player.y # reset movement
 			end
@@ -401,7 +402,7 @@ class KrozGame
 	# end
 	
 	def play(name)
-		SoundManager.play(name)
+		@render_state.play(name)
 	end
 		
 	def generate_random_level(level_data)
@@ -499,6 +500,15 @@ class KrozGame
 		@border_color = [Gosu::Color::RED,Gosu::Color::BLUE,Gosu::Color::GREEN,Gosu::Color::WHITE].sample
 	end
 	
+	# interestingly lava and forests only spread orthogonal and not diagonal
+	def is_orthogonal_to?(cx, cy, comp_classes)
+		[[1,0],[-1,0],[0,1],[0,-1]].each do |dir|			
+			comp = component_at(cx + dir.first, cy + dir.last)			
+			return true if comp and comp_classes.include?(comp.class)
+		end
+		return false
+	end
+	
 	def load_level()
 		unload_level		
 		flash("Press any key to begin this level")
@@ -507,15 +517,10 @@ class KrozGame
 		generate_random_level(level_data) if level_data[:mode] == :random
 		
 		level_data[:data] = level_data[:data].gsub(10.chr,"").gsub(13.chr,"")		
-		
-		# puts level_data[:data]
-		# exit
 
 		randomize_colors
 
 		if level_data[:flags][:gravity]
-		# sideways level
-			flash("sideways!")
 			@effects[:gravity] = Effect.new(0.25) do |e|							
 				if not location_supported?(@player.x, @player.y) and not @player.rope_under?			
 					player_move(@player.x,@player.y+1)		
@@ -525,6 +530,44 @@ class KrozGame
 			@effects[:gravity].activate
 		else 
 			@effects.delete(:gravity)
+		end	
+
+		if level_data[:flags][:lava_rate]					
+			@effects[:lava] = Effect.new(GROWTH_TICK) do |e|				
+				level_data[:flags][:lava_rate].to_i.times do
+					pos = random_board_location						
+					comp = component_at(pos.first, pos.last)
+					if (not(comp) or comp.can_lava_spread?) and is_orthogonal_to?(pos.first,pos.last,[CompLava])
+						comp.on_lava_spread if comp							
+						add_component(CompLava.new(self, pos.first, pos.last))
+					end
+				end
+				e.activate
+			end
+			@effects[:lava].activate
+		else
+			@effects.delete(:lava)
+		end
+		
+		if level_data[:flags][:tree_rate]			
+			@effects[:trees] = Effect.new(GROWTH_TICK) do |e|
+				level_data[:flags][:tree_rate].to_i.times do
+					pos = random_board_location		
+					comp = component_at(pos.first, pos.last)					
+					if (not(comp) or comp.can_tree_spread?) and is_orthogonal_to?(pos.first,pos.last,[CompTree,CompForest])									
+						comp.on_tree_spread if comp
+						if rand(4) == 0
+							add_component(CompTree.new(self, pos.first, pos.last))
+						else
+							add_component(CompForest.new(self, pos.first, pos.last))
+						end
+					end
+				end
+				e.activate
+			end
+			@effects[:trees].activate
+		else
+			@effects.delete(:trees)
 		end		
 		
 		raise "invalid map #{@episode.to_s}_#{@mission}.yml - #{level_data[:data].size} <> 1472" unless level_data[:data].size == 1472 # plus newlines?
@@ -560,7 +603,7 @@ class KrozGame
 					when "B" # {21} Bomb - destroy mobs within 4 cells.  leave other things alone
 						add_component(CompBomb.new(self,x,y))						
 					when "V" # {22} Lava - lost 10 gems to walk on.  multiplies on some levels
-						add_component(CompLava.new(self,x,y, level_data[:flags][:lava_rate] || 0.0))
+						add_component(CompLava.new(self,x,y))
 					when "=" # {23} Pit - fall in and die.  
 						add_component(CompPit.new(self,x,y))					
 					when "ü" # {252} Message - displays a secret message on lv18
@@ -737,6 +780,7 @@ class KrozGame
 	end
 	
 	def unload_level
+		@render_state.clear_all
 		@blocking_effects.each do |name,e| e.clear end
 		@effects.each do |name,e| e.clear end
 		@floor = Array.new(@board_x * @board_y, TileFloor)

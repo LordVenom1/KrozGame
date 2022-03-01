@@ -3,6 +3,17 @@ class RenderState
 		# @floor_layer = Array.new(board_x) do Array.new(board_y,nil) end
 		# @tile_layer = Array.new(board_x) do Array.new(board_y,nil) end
 		@flash = []
+		@sound_events = []
+	end
+	
+	def play(sound_name)
+		@sound_events << sound_name
+	end
+	
+	def get_sound_events
+		events = @sound_events.uniq
+		@sound_events = []
+		events
 	end
 	
 	def add_flash(message)		
@@ -19,5 +30,10 @@ class RenderState
 		@flash
 		# print @flash.size
 		# @flash
+	end
+	
+	def clear_all
+		@flash = []
+		@sound_events = []
 	end
 end

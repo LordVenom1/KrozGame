@@ -1,7 +1,7 @@
 ---
 :mode: :random
 :flags: 
-  :lava_rate: 0.40
+  :lava_rate: 40
 :data:
 - L,4
 - V,300

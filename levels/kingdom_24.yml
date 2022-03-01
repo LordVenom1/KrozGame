@@ -2,7 +2,7 @@
 :mode: static
 :flags: 
     :gravity: t
-    :lava: 0.75
+    :lava_rate: 75
 :data: |-2
   T    P  #the#step#of#faith#-----’-~Kñ-------U-----#---D-D-D-D-LL
   ######----------------------º44444444-------»-K’--#½############

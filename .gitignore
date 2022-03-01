@@ -1,2 +1,6 @@
 /krozfree/**
-/media/**
+/media_raw/**
+/audio_raw/**
+/retired/**
+save.yml
+design.txt

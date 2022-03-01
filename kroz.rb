@@ -15,25 +15,31 @@ require_relative 'sprite_manager.rb'
 require_relative 'sound_manager.rb'
 
 module MainMenuLayer
-	def self.update(gosu, dt)
-		
+	def self.update(gosu, dt)		
+		@@duration -= dt if @@duration > 0.0
+		if @@duration <= 0.0
+			@@bg = "title_new"			
+		end		
 	end
 	
 	def self.draw(gosu)
 		#gosu.font.draw_text_rel("PRESS ANY KEY TO BEGIN YOUR DESCENT INTO KROZ", gosu.width / 2.0, gosu.height * 0.40, 1.0, 0.5, 0.5, 1.5, 1.5)
-		img = SpriteManager.image("title")
+		img = SpriteManager.image(@@bg)
 		img.draw(0,0,0, gosu.width.to_f / img.width.to_f, gosu.height.to_f / img.height.to_f)
 	end
 	
 	def self.button_down(gosu, id)
-		if id == Gosu::KB_ESCAPE
-			gosu.close				
-		else
-			gosu.set_layer(GameLayer)
-		end		
+		return if @@bg == "title"
+		gosu.set_layer(GameLayer)		
 	end
 	
 	def self.button_up(id)
+	end
+	
+	def self.reset
+		@@duration = 0.40
+		@@bg = "title"
+		self
 	end
 end
 
@@ -47,11 +53,13 @@ module MenuLayer
 		row_height = 32
 				
 		gosu.font.draw_text_rel("Level: #{gosu.game.mission.to_s.rjust(2, " ")}", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("Sound: #{gosu.options[:sound] ? "Enabled" : "Disabled"}", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		row += row_height
 		
 		gosu.font.draw_text_rel("ESC - Return to KROZ", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'Q' - Quit the game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'X' - Restart this level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
+		gosu.font.draw_text_rel("'P' - Toggle Sound", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'S' - Save your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'R' - Restore your game", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
 		gosu.font.draw_text_rel("'[' - Return to previous level", gosu.width / 2.0, top_margin + row, 1.0, 0.5, 0.5, 1.5, 1.5) ; row += row_height
@@ -63,6 +71,8 @@ module MenuLayer
 			gosu.set_layer(GameLayer)			
 		elsif id == Gosu::KB_Q
 			gosu.close
+		elsif id == Gosu::KB_P
+			gosu.options[:sound] = not(gosu.options[:sound])
 		elsif id == Gosu::KB_X
 			gosu.game.handle_action(:restart_level)
 			gosu.set_layer(GameLayer)	
@@ -84,7 +94,11 @@ end
 
 module GameLayer
 	def self.update(gosu,dt)		
-		gosu.game.update(dt)		
+		gosu.game.update(dt)
+
+		gosu.game.render_state.get_sound_events.each do |name|
+			SoundManager.play(name) if gosu.options[:sound]
+		end
 	end
 	
 	def self.draw(gosu)
@@ -92,9 +106,7 @@ module GameLayer
 		(0...gosu.game.board_x).each do |x|
 			(0...gosu.game.board_y).each do |y|
 				t = gosu.game.floor_tile(x,y)				
-				#raise "tile not found #{x}, #{y}" unless t
-				#puts t.sprite_name
-				if t #opaque tiles don't need to have anything under them...
+				if t
 					SpriteManager.image(t.sprite_name).draw(x * GameWindow::TILE_WIDTH * GameWindow::TILE_SCALE, y * GameWindow::TILE_HEIGHT * GameWindow::TILE_SCALE, 0, GameWindow::TILE_SCALE, GameWindow::TILE_SCALE, t.color)
 				end
 			end
@@ -106,22 +118,17 @@ module GameLayer
 			y = c.y
 			begin
 				SpriteManager.image(c.sprite_name).draw(x * GameWindow::TILE_WIDTH * GameWindow::TILE_SCALE, y * GameWindow::TILE_HEIGHT * GameWindow::TILE_SCALE, 0, GameWindow::TILE_SCALE, GameWindow::TILE_SCALE, c.color)
-			rescue
-				puts c
 			end
 		end
 		
-		# draw ui		
+		# draw ui				
+		gosu.font.draw_text("Numpad to move   W)hip   T)eleport    ESC) Options", 30.0, gosu.height - 60, 1.0)
 		gosu.font.draw_text("Score: #{gosu.game.player.score.to_s.rjust(9," ")}  Level: #{gosu.game.mission.to_s.rjust(2, " ")}  Gems: #{gosu.game.player.gems.to_s.rjust(3, " ")}  Whips: #{(gosu.game.player.whips.to_s.rjust(3, " ") + (gosu.game.player.rings == 0 ? "  " : ("+" + gosu.game.player.rings.to_s)))}  Teleports: #{gosu.game.player.teleports.to_s.rjust(3, " ")}  Keys: #{gosu.game.player.keys.to_s.rjust(2, " ")}", 30.0, gosu.height - 30, 1.0)
 		
-		# @font.draw_text("PAUSED", 420, 530, 1.0, 2.0, 2.0) if @game.paused
-		gosu.font.draw_text_rel("PAUSED", gosu.width / 2.0, gosu.height * 0.90, 1.0, 0.5, 0.5, 2.0, 2.0) if gosu.game.paused
-		
+		gosu.font.draw_text_rel("PAUSED", gosu.width / 2.0, gosu.height * 0.90, 1.0, 0.5, 0.5, 2.0, 2.0) if gosu.game.paused		
 		gosu.font.draw_text_rel("GAME OVER", gosu.width / 2.0, gosu.height * 0.40, 1.0, 0.5, 0.5, 4.0, 4.0, Gosu::Color::RED) if gosu.game.player.status == :dead
 		
-		# center flash text?
 		gosu.font.draw_text_rel(gosu.game.render_state.current_flash, gosu.width / 2.0, gosu.height * 0.80, 1.0, 0.5, 0.5, 1.5, 1.5) if gosu.game.render_state.current_flash
-		#draw_text(text, x, y, z, scale_x = 1, scale_y = 1, color = 0xff_ffffff, mode = :default) ⇒ void
 	end
 	
 	def self.set_action(gosu)
@@ -129,10 +136,6 @@ module GameLayer
 			gosu.game.handle_action(gosu.game.paused ? :unpause : :pause)
 			gosu.reset_last_update
 		else
-			# if @game.paused
-				# @game.unpause 
-				# @last_update = Time.now()
-			# end
 			if gosu.game.render_state.current_flash
 				gosu.game.render_state.clear_flash
 				gosu.game.blocking_effects[:flash].clear if not gosu.game.render_state.current_flash
@@ -158,12 +161,6 @@ module GameLayer
 				gosu.game.handle_action(:whip)
 			elsif Gosu.button_down? Gosu::KB_T
 				gosu.game.handle_action(:teleport)
-
-			# elsif Gosu.button_down? Gosu::MS_LEFT
-				# mx, my = mouse_x, mouse_y
-				# mx = (mx / GameWindow::TILE_WIDTH / GameWindow::TILE_SCALE).to_i
-				# my = (my / GameWindow::TILE_HEIGHT / GameWindow::TILE_SCALE).to_i							
-				# @game.handle_action(:set_location, mx, my)
 			end
 		end
 	end	
@@ -185,19 +182,18 @@ class GameWindow < Gosu::Window
 
 	attr_reader :game
 	attr_reader :font
+	attr_reader :options
 
 	def initialize
 		super 1056, 768		
 		self.caption = "Kroz"		
 		@game = KrozGame.new()
-		
-
-		# GameWindow::TILE_SCALE = [(width * 0.90) / (@game.board_x * GameWindow::TILE_WIDTH.to_f), (height * 0.90) / (@game.board_y * GameWindow::TILE_HEIGHT.to_f)].min		
-	
 		reset_last_update		
 		@font = Gosu::Font.new(24)		
 		@action = nil				
-		@layer = MainMenuLayer
+		@layer = MainMenuLayer.reset
+		
+		@options = {sound: false}		
 	end	
 	
 	

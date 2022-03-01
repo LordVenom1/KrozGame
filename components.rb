@@ -166,6 +166,14 @@ class Component
 		inactivate
 	end
 	
+	def can_tree_spread?
+		false
+	end
+	
+	def on_tree_spread
+		inactivate
+	end
+	
 	def chance_to_obscure(i)
 		if rand(i) == 0
 			@name = "question"
@@ -203,6 +211,14 @@ class CompTypePowerup < Component
 		true
 	end
 	
+	def can_tree_spread?
+		true
+	end
+	
+	def can_tree_spread?
+		true
+	end
+	
 	def on_arrow_hit
 		inactivate
 		false
@@ -237,10 +253,10 @@ class CompPlayer < Component
 		@status = :alive
 		
 		# for debugging
-		# @gems = 999
-		# @whips = 999
-		# @teleports = 999
-		# @keys = 20
+		@gems = 999
+		@whips = 999
+		@teleports = 999
+		@keys = 20
 		
 		@rope = false
 		
@@ -307,12 +323,14 @@ class CompPlayer < Component
 		s = 0 if s < 0
 	end
 	
-	def add_gems(cnt)
+	def add_gems(cnt)		
+	
 		@gems += cnt
 		@score = cnt * 10 if cnt > 0
 		if @gems < 0
 			@status = :dead 
 			@gems = 0
+			raise "wut"
 			@game.flash("You have died")
 		end
 			# play death		
@@ -666,6 +684,14 @@ class CompStop < Component
 	def on_push_rock(rock)
 		inactivate
 	end
+	
+	def can_lava_spread?
+		true
+	end
+	
+	def can_tree_spread
+		true
+	end
 end
 
 class CompRock < Component
@@ -1017,6 +1043,10 @@ class CompMob < Component
 		true
 	end
 	
+	def can_tree_spread?
+		true
+	end
+	
 	def on_bomb()
 		inactivate
 	end
@@ -1213,6 +1243,10 @@ class CompTrapTeleport < CompTypeTrap
 		@color = Gosu::Color::GREEN
 	end 
 	
+	def visible?
+		true
+	end
+	
 	def can_push_rock?
 		true
 	end
@@ -1281,7 +1315,11 @@ class CompWeakWallInvisible < CompWeakWall
 		super(game,x,y)
 		@color = Gosu::Color.argb(0xff_A52A2A)
 		@visible = false
-	end 
+	end
+
+	def can_mob_walk?
+		@visible
+	end
 	
 	def visible?
 		@visible
@@ -1326,18 +1364,8 @@ class CompTunnel < Component
 				end			
 			end
 		end 
-		# raise "outgoing tunnel is blocked..." # do we care or just skip the jump?
-		# false
-		# find other tunnel...
 	end
 end
-
-# class CompUnknown < Component
-	# def initialize(game,x,y)
-		# super(game,x,y,"unknown",:trigger)
-		# @color = Gosu::Color::YELLOW
-	# end 
-# end	
 
 class CompEWall < Component
 	def initialize(game,x,y)
@@ -1697,9 +1725,13 @@ class CompFastSpell < Component
 		true
 	end
 	
+	def on_whip
+		inactivate
+	end
+	
 	def on_player_walk
 		super
-		@game.add_score(2)
+		@game.player.add_score(2)
 		@game.flash("Monsters begin to move more quickly")		
 		@game.effects[:speed_monster].activate
 		true
@@ -1745,6 +1777,10 @@ class CompRope < Component
 	def on_player_walk
 		inactivate
 		true
+	end
+	
+	def can_mob_walk?
+		false
 	end
 	
 	def on_player_walk_after
@@ -1795,36 +1831,14 @@ class CompDropRope < Component
 end
 
 class CompLava < Component
-	def initialize(game,x,y,rate=1.0)
+	def initialize(game,x,y)
 		super(game,x,y,"lava")
-		@color = Gosu::Color::RED
-		@rate = 1.0 #rate		
-		@game.effects[self] = Effect.new(rate)
-		@game.effects[self].activate
+		@color = Gosu::Color::RED		
 	end
 	
 	def update(dt)				
-		return unless @active
-		if not @game.effects[self].active?
-			cont = spawn_lava
-			@game.effects[self].activate if cont
-		end		
 	end
-	
-	def spawn_lava
-		# puts "spawn"
-		potential = false
-		KrozGame::DIRS.shuffle.each do |d|
-			c = @game.component_at(@x + d.first, @y + d.last)
-			potential = true if [CompTriggerWallBlock].include? c.class
-			next if c and not c.can_lava_spread? # what can lava overwrite?
-			c.on_lava_spread if c
-			# @game.add_component(CompLava.new(@game,@x + d.first,@y + d.last,@rate))
-			return true
-		end		
-		return potential
-	end
-	
+		
 	def can_player_walk?
 		true
 	end
@@ -1839,11 +1853,13 @@ class CompLava < Component
 	
 	def on_player_walk
 		inactivate
-		@game.effects[self].clear
-		@game.effects.delete(self)
 		@game.player.add_score(25)
 		@game.player.add_gems(-10)
 		true
+	end
+	
+	def can_lava_spread?
+		false
 	end
 end
 

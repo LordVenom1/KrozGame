@@ -1,16 +1,14 @@
 # https://opengameart.org/content/rpg-sound-pack
 
 class SoundManager
-	@sounds = {}
-	@enabled = false
+	@sounds = {}	
 	
 	def self.load(name,filename)
 		@sounds[name] = Gosu::Sample.new("media/audio/#{filename}")
 	end
 		
 	def self.play(name)				
-		raise "sound sample not found: #{name}" unless @sounds.has_key?(name)
-		return unless @enabled
+		raise "sound sample not found: #{name}" unless @sounds.has_key?(name)		
 		@sounds[name].play
 	end
 end

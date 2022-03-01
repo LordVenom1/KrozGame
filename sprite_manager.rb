@@ -23,6 +23,7 @@ class SpriteManager
 end
 
 SpriteManager.load_background("title","title.png")
+SpriteManager.load_background("title_new","title_new.png")
 
 
 # SpriteManager.load_sprite_from_sheet("floor1", "terrain_sprites.png", 0, 0, 16, 24)

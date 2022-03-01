@@ -1,0 +1,16 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    gosu (0.15.1-x64-mingw32)
+
+PLATFORMS
+  x64-mingw32
+
+DEPENDENCIES
+  gosu (= 0.15.1)
+
+RUBY VERSION
+   ruby 2.6.6p146
+
+BUNDLED WITH
+   1.17.2
