@@ -1,4 +1,3 @@
-=======
 # Kingdom of Kroz - Ruby
 
 This is a re-implementation of Kingdom of Kroz (the 1990 re-release), originally made by Scott Miller.
