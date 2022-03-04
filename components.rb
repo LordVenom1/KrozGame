@@ -188,9 +188,7 @@ class CompPlayer < Component
 		@keys = 0
 		@rings = 0
 		@status = :alive
-		
-		@keys = 99
-			
+					
 		@rope = false
 		
 		@letters = Set.new()
@@ -453,8 +451,7 @@ end
 
 class CompRing < Component
 	def initialize(game,x,y)
-		super(game,x,y,"ring")
-		@game.give_hint(:ring)
+		super(game,x,y,"ring")		
 		@color = Gosu::Color.argb(0xff_FB00F2)
 		chance_to_obscure(10)
 	end 
@@ -465,6 +462,7 @@ class CompRing < Component
 	
 	def on_player_walk
 		super
+		@game.give_hint(:ring)
 		@game.player.add_rings(1)
 		@game.player.add_score(15)
 		true
