@@ -10,7 +10,7 @@ To play:
 * Download this project to a local directory
 * Download and install 'ruby 2.6.6'.  It should include the devkit.
 * Run 'bundle install' in the extracted folder
-* Type "kroz.rb"
+* Run "kroz.rb"
 
 Utilizing public domain art and audio assets:
 * Graphics: [Shadow of the Wyrm Spritesheets by Julian Day](https://www.shadowofthewyrm.org/downloads.html)
