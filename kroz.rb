@@ -213,7 +213,7 @@ class GameWindow < Gosu::Window
 		@action = nil				
 		@layer = MainMenuLayer.reset
 		
-		@options = {sound: false}		
+		@options = {sound: true}		
 	end	
 	
 	

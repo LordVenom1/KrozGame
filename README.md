@@ -3,12 +3,15 @@
 This is a re-implementation of Kingdom of Kroz (the 1990 re-release), originally made by Scott Miller.
 In 2009 the original games were released as freeware, while the PASCAL source code was released under a GPL license.
 
-[Wikipedia](https://en.wikipedia.org/wiki/Kroz)
-[Original Kroz Source](https://github.com/tangentforks/kroz)
+[Wikipedia](https://en.wikipedia.org/wiki/Kroz)  
+[Original Kroz Source](https://github.com/tangentforks/kroz)  
+
+[YouTube - Sample Gameplay of my remake(/images/screenshot.png?raw=true)](https://youtu.be/FaLTRXlnCYI)  
+[YouTube - Sample Gameplay of the Original](https://www.youtube.com/watch?v=Kj2DMAtnS58&ab_channel=Squakenet)  
 
 To play:
 * Download this project to a local directory
-* Download and install 'ruby 2.6.6'.  It should include the devkit.
+* Download and install 'ruby 2.6.6', including the devkit.
 * Run 'bundle install' in the extracted folder
 * Run "kroz.rb"
 
@@ -30,4 +33,4 @@ Design notes:
 
 Outcome:
 * The goals of the project were met and I am very happy with the results.  
-* The game is playable, feels similar to playing the original, and the emergent gameplay is still fun
+* The game is playable, feels similar to playing the original, and the emergent gameplay still holds some surprises.
