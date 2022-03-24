@@ -6,7 +6,7 @@ In 2009 the original games were released as freeware, while the PASCAL source co
 [Wikipedia](https://en.wikipedia.org/wiki/Kroz)  
 [Original Kroz Source](https://github.com/tangentforks/kroz)  
 
-[YouTube - Sample Gameplay of my remake(/images/screenshot.png?raw=true)](https://youtu.be/FaLTRXlnCYI)  
+[![YouTube - Sample Gameplay of my remake(/images/screenshot.png?raw=true)]](https://youtu.be/FaLTRXlnCYI)  
 [YouTube - Sample Gameplay of the Original](https://www.youtube.com/watch?v=Kj2DMAtnS58&ab_channel=Squakenet)  
 
 To play:
