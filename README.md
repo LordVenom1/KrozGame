@@ -6,8 +6,8 @@ In 2009 the original games were released as freeware, while the PASCAL source co
 [Wikipedia](https://en.wikipedia.org/wiki/Kroz)  
 [Original Kroz Source](https://github.com/tangentforks/kroz)  
 
-[![YouTube - Sample Gameplay of my remake](/images/screenshot.png?raw=true)](https://youtu.be/FaLTRXlnCYI)  
-[YouTube - Sample Gameplay of the Original](https://www.youtube.com/watch?v=Kj2DMAtnS58&ab_channel=Squakenet)  
+YouTube - Sample Gameplay of my remake:  
+[![YouTube - Sample Gameplay of my remake](/images/screenshot.png?raw=true)](https://youtu.be/FaLTRXlnCYI) 
 
 To play:
 * Download this project to a local directory
@@ -30,6 +30,9 @@ Goals:
 Design notes:
 * Written in Ruby.  Graphic rendering and Audio are handled by [Gosu](https://www.libgosu.org/) library.  		
 * Levels are exactly taken from PASCAL source.  Specific pieces of game behavior were taken from the source to maintain accuracy.  Otherwise the game design and structure were written from scratch.
+
+YouTube - Sample Gameplay of the Original:  
+[YouTube - Sample Gameplay of the Original](https://www.youtube.com/watch?v=Kj2DMAtnS58&ab_channel=Squakenet)  
 
 Outcome:
 * The goals of the project were met and I am very happy with the results.  
